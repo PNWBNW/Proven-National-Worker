@@ -1,0 +1,46 @@
+# Ignore build artifacts  
+/build/  
+/target/  
+/dist/  
+
+# Ignore compiled Aleo program files  
+*.aleo  
+*.avm  
+*.output  
+
+# Ignore temporary files  
+*.tmp  
+*.log  
+*.cache  
+*.DS_Store  
+
+# Ignore editor/IDE-specific files  
+.vscode/  
+.idea/  
+*.iml  
+
+# Ignore dependency and package files  
+/node_modules/  
+/yarn.lock  
+/package-lock.json  
+
+# Ignore environment variables and secrets  
+.env  
+.env.local  
+.env.*  
+
+# Ignore test results  
+/coverage/  
+/tests/output/  
+
+# Ignore Solidity build files  
+*.json  
+*.bin  
+*.abi  
+/cache/  
+
+# Ignore zip files and backups  
+*.zip  
+*.bak  
+*.tar.gz  
+*.rar
