@@ -33,7 +33,7 @@ This system is designed to be **tamper-resistant, auditable, and fair**, prevent
 - **Worker-Driven Fund Allocation**: SubDAOs vote on how to use worker-generated funds.
 
 ### 5️⃣ Cross-Chain Payroll & Interoperability
-- **Aleo → EVM Bridge**: Supports **EVM chains** instead of Solana.
+- **Aleo → EVM Bridge**: Supports **EVM chains**
 - **Bridging Fees Paid by Workers** (Rollups enabled for cost reduction).
 - **Rollup Batch Processing Every 30 Minutes** for cheaper transactions.
 - **Aleo ↔ Stellar Interoperability**: Zero-knowledge proofs (ZKPs) verify Aleo payroll before Stellar executes payments.
