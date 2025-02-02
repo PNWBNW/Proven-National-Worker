@@ -1,0 +1,40 @@
+{
+    "networks": {
+        "ethereum": {
+            "name": "Ethereum Mainnet",
+            "chainId": 1,
+            "rpcUrl": "https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID",
+            "explorer": "https://etherscan.io/"
+        },
+        "goerli": {
+            "name": "Goerli Testnet",
+            "chainId": 5,
+            "rpcUrl": "https://goerli.infura.io/v3/YOUR_INFURA_PROJECT_ID",
+            "explorer": "https://goerli.etherscan.io/"
+        },
+        "polygon": {
+            "name": "Polygon Mainnet",
+            "chainId": 137,
+            "rpcUrl": "https://polygon-rpc.com/",
+            "explorer": "https://polygonscan.com/"
+        },
+        "mumbai": {
+            "name": "Polygon Mumbai Testnet",
+            "chainId": 80001,
+            "rpcUrl": "https://rpc-mumbai.maticvigil.com/",
+            "explorer": "https://mumbai.polygonscan.com/"
+        },
+        "arbitrum": {
+            "name": "Arbitrum One",
+            "chainId": 42161,
+            "rpcUrl": "https://arb1.arbitrum.io/rpc",
+            "explorer": "https://arbiscan.io/"
+        },
+        "arbitrumGoerli": {
+            "name": "Arbitrum Goerli Testnet",
+            "chainId": 421613,
+            "rpcUrl": "https://goerli-rollup.arbitrum.io/rpc",
+            "explorer": "https://goerli.arbiscan.io/"
+        }
+    }
+}
