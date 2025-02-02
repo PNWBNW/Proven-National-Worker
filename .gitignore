@@ -1,46 +1,39 @@
-# Ignore build artifacts  
-/build/  
-/target/  
-/dist/  
+# Node.js dependencies  
+node_modules/  
+package-lock.json  
 
-# Ignore compiled Aleo program files  
-*.aleo  
-*.avm  
-*.output  
+# Environment variables  
+.env  
+*.env.local  
 
-# Ignore temporary files  
-*.tmp  
-*.log  
-*.cache  
-*.DS_Store  
+# Build artifacts  
+dist/  
+build/  
+.cache/  
+out/  
 
-# Ignore editor/IDE-specific files  
+# Logs  
+npm-debug.log*  
+yarn-debug.log*  
+yarn-error.log*  
+pnpm-debug.log*  
+
+# Solidity & Hardhat files  
+artifacts/  
+cache/  
+coverage/  
+typechain/  
+
+# Aleo-specific ignores  
+aleo/target/  
+aleo/build/  
+aleo/cache/  
+
+# VS Code & IDE files  
 .vscode/  
 .idea/  
 *.iml  
 
-# Ignore dependency and package files  
-/node_modules/  
-/yarn.lock  
-/package-lock.json  
-
-# Ignore environment variables and secrets  
-.env  
-.env.local  
-.env.*  
-
-# Ignore test results  
-/coverage/  
-/tests/output/  
-
-# Ignore Solidity build files  
-*.json  
-*.bin  
-*.abi  
-/cache/  
-
-# Ignore zip files and backups  
-*.zip  
-*.bak  
-*.tar.gz  
-*.rar
+# OS-specific files  
+.DS_Store  
+Thumbs.db
