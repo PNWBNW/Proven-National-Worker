@@ -1,6 +1,7 @@
 import DateTime;
 import MerkleHelper;
 import NetworkStatus;
+import AleoNetwork;
 
 contract FarmInvestment {
 
@@ -18,6 +19,11 @@ contract FarmInvestment {
         // Check network health before proceeding
         if (!self.isNetworkHealthy()) {
             return "Network congestion detected: SubDAO vote required";
+        }
+
+        // Ensure the payout is executed on the Aleo chain
+        if (!self.isAleoNetwork()) {
+            return "Payouts can only be processed on the Aleo chain";
         }
 
         // Verify the Merkle proof before proceeding with the payout logic
@@ -54,5 +60,11 @@ contract FarmInvestment {
 
         // Set a threshold for gas fees and latency
         return !(gas_fee > 2 * NetworkStatus::get30DayAvgGasFee() || latency > NetworkStatus::getHighLatencyThreshold());
+    }
+
+    // Function to check if the network is Aleo
+    private fun isAleoNetwork() -> bool {
+        // Assuming we have an Aleo-specific network check function
+        return AleoNetwork::isCurrentChain("Aleo");
     }
 }
