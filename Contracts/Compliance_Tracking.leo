@@ -1,73 +1,139 @@
-program compliance_tracking.aleo;
+// SPDX-License-Identifier: proprietary
+// Compliance Tracking contract for PNW Smart Contracts (Agricultural & Non-Agricultural)
 
-mapping employer_compliance:
-    key: address;
-    value: (u64, u64, u8, bool); // (total_taxes_paid, last_payment_timestamp, missed_payments, blacklisted)
+// Import relevant modules for integration with worker identity and subDAO contracts
+import 0x1::worker_identity;
+import 0x1::subdao_management;
+import 0x1::tax_management;
 
-mapping worker_reports:
-    key: address;
-    value: u64; // Number of complaints filed against the employer
+// Enum for compliance status (tax payments)
+enum ComplianceStatus {
+    Compliant,       // Employer is compliant with all regulations
+    NonCompliant,    // Employer has missed required payments
+    Blacklisted,     // Employer has been blacklisted for repeated violations
+}
 
-mapping blacklisted_employers:
-    key: address;
-    value: bool; // True if the employer is banned
+// Struct to track employer compliance data
+struct EmployerCompliance {
+    employer_address: address,
+    tax_paid: u64,                     // Total taxes paid by employer
+    last_tax_payment_date: u64,        // Date of the last tax payment
+    compliance_status: ComplianceStatus, // Compliance status of the employer
+    penalty_count: u64,                // Number of penalties issued for missed payments
+    is_blacklisted: bool,              // Whether the employer is blacklisted
+}
 
-function record_tax_payment(employer: address, amount: u64) -> bool {
-    let timestamp = get_block_height();
+// State to store compliance records of all employers
+state employer_compliance: map<address, EmployerCompliance>;
 
-    if employer_compliance.contains(employer) {
-        let (total_paid, _, missed, blacklisted) = employer_compliance[employer];
+// Function to initialize a new employer compliance record
+public fun initialize_compliance_record(employer_address: address) {
+    // Check if compliance record already exists
+    if (employer_compliance.contains(employer_address)) {
+        error("Compliance record already exists for this employer.");
+    }
 
-        employer_compliance[employer] = (total_paid + amount, timestamp, 0, blacklisted);
+    // Initialize the new compliance record with default values
+    let new_compliance_record = EmployerCompliance {
+        employer_address: employer_address,
+        tax_paid: 0,
+        last_tax_payment_date: 0,
+        compliance_status: ComplianceStatus::Compliant,
+        penalty_count: 0,
+        is_blacklisted: false,
+    };
+
+    // Store the new compliance record in the state
+    employer_compliance.insert(employer_address, new_compliance_record);
+}
+
+// Function to track an employer's tax payment
+public fun track_tax_payment(employer_address: address, tax_amount: u64, payment_date: u64) {
+    let mut compliance_record = employer_compliance.get(employer_address).unwrap_or(error("Employer not found."));
+
+    // Update the tax paid and the last payment date
+    compliance_record.tax_paid = compliance_record.tax_paid + tax_amount;
+    compliance_record.last_tax_payment_date = payment_date;
+
+    // Update the compliance status
+    if (compliance_record.tax_paid >= tax_amount) {
+        compliance_record.compliance_status = ComplianceStatus::Compliant;
+    }
+
+    // Store the updated compliance record in the state
+    employer_compliance.insert(employer_address, compliance_record);
+}
+
+// Function to issue a penalty for missed tax payments
+public fun issue_penalty(employer_address: address, penalty_amount: u64) {
+    let mut compliance_record = employer_compliance.get(employer_address).unwrap_or(error("Employer not found."));
+
+    // If the employer is non-compliant, issue a penalty
+    if (compliance_record.compliance_status != ComplianceStatus::Compliant) {
+        compliance_record.penalty_count = compliance_record.penalty_count + 1;
+
+        // If the penalty count exceeds a threshold, blacklist the employer
+        if (compliance_record.penalty_count >= 3) {
+            compliance_record.is_blacklisted = true;
+            compliance_record.compliance_status = ComplianceStatus::Blacklisted;
+        }
+
+        // Update the employer compliance status in state
+        employer_compliance.insert(employer_address, compliance_record);
     } else {
-        employer_compliance[employer] = (amount, timestamp, 0, false);
+        error("Employer is compliant, no penalty necessary.");
     }
-
-    return true;
 }
 
-function flag_missed_payment(employer: address) -> bool {
-    if !employer_compliance.contains(employer) {
-        return false;
-    }
-
-    let (total_paid, last_payment, missed, blacklisted) = employer_compliance[employer];
-
-    let new_missed = missed + 1;
-    let new_blacklist = if new_missed >= 3 { true } else { blacklisted };
-
-    employer_compliance[employer] = (total_paid, last_payment, new_missed, new_blacklist);
-
-    if new_blacklist {
-        blacklisted_employers[employer] = true;
-    }
-
-    return true;
+// Function to check the compliance status of an employer
+public fun get_compliance_status(employer_address: address) -> ComplianceStatus {
+    let compliance_record = employer_compliance.get(employer_address).unwrap_or(error("Employer not found."));
+    return compliance_record.compliance_status;
 }
 
-function report_employer(worker: address, employer: address) -> bool {
-    if !worker_reports.contains(employer) {
-        worker_reports[employer] = 1;
-    } else {
-        worker_reports[employer] += 1;
-    }
+// Function to reset an employer's compliance status after payment
+public fun reset_compliance_status(employer_address: address) {
+    let mut compliance_record = employer_compliance.get(employer_address).unwrap_or(error("Employer not found."));
 
-    return true;
+    // Reset the compliance status and penalty count after the employer pays overdue taxes
+    compliance_record.compliance_status = ComplianceStatus::Compliant;
+    compliance_record.penalty_count = 0;
+
+    // Update the employer compliance record in state
+    employer_compliance.insert(employer_address, compliance_record);
 }
 
-function is_blacklisted(employer: address) -> bool {
-    return blacklisted_employers[employer];
-}
+// Function to allow blacklisted employers to pay a fine for reinstatement
+public fun reinstate_employer(employer_address: address, fine_amount: u64) {
+    let mut compliance_record = employer_compliance.get(employer_address).unwrap_or(error("Employer not found."));
 
-function pay_reinstatement_fine(employer: address, fine_amount: u64) -> bool {
-    if !is_blacklisted(employer) {
-        return false;
+    // Check if employer is blacklisted
+    if (!compliance_record.is_blacklisted) {
+        error("Employer is not blacklisted.");
     }
 
-    let (total_paid, last_payment, missed, _) = employer_compliance[employer];
+    // Calculate the fine and allow the employer to pay
+    let fine_due = compliance_record.tax_paid + (fine_amount / 4);
+    if (fine_amount < fine_due) {
+        error("Insufficient fine amount to reinstate.");
+    }
 
-    employer_compliance[employer] = (total_paid + fine_amount, last_payment, 0, false);
-    blacklisted_employers.remove(employer);
+    // Remove the blacklisting status after paying the fine
+    compliance_record.is_blacklisted = false;
+    compliance_record.compliance_status = ComplianceStatus::Compliant;
 
-    return true;
+    // Update the compliance status in state
+    employer_compliance.insert(employer_address, compliance_record);
+}
+
+// Function to get a blacklist status for an employer
+public fun is_blacklisted(employer_address: address) -> bool {
+    let compliance_record = employer_compliance.get(employer_address).unwrap_or(error("Employer not found."));
+    return compliance_record.is_blacklisted;
+}
+
+// Function to get the penalty count for an employer
+public fun get_penalty_count(employer_address: address) -> u64 {
+    let compliance_record = employer_compliance.get(employer_address).unwrap_or(error("Employer not found."));
+    return compliance_record.penalty_count;
 }
