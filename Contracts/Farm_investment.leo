@@ -1,92 +1,95 @@
-// farm_investment.leo
-import 0x01 from "leo";
+import MerkleDecisionMaker;
+import SubDAOVoting; // Importing SubDAO voting contract
 
-public struct FarmInvestment {
-    // Worker ID
-    worker_id: address,
+contract FarmInvestment {
+    // Farm investment balances
+    state farm_balances: map<address, u64>;
     
-    // Amount invested by the worker (in some unit)
-    amount_invested: u64,
+    // Active SubDAO payout vote state
+    state pending_votes: map<address, vector<u8>>; // Stores votes for each farm payout request
 
-    // Whether the worker is voting to manage produce/animals or let the farm manage it
-    vote_for_farm_management: bool,
-
-    // The farm associated with this investment
-    farm_id: address
-}
-
-// The Farm struct holds information about the farm and its workers.
-public struct Farm {
-    // Farm ID for identifying the farm
-    farm_id: address,
-
-    // The total funds pooled for the farm investment
-    total_investment: u64,
-
-    // The current status of farm management (e.g., "Farm managed", "Worker managed")
-    farm_management_status: string,
-
-    // List of workers investing in this farm
-    workers_invested: vector<address>,
-
-    // Total number of workers invested
-    total_workers: u64
-}
-
-// Mapping for all workers and their farm investments
-public var worker_investments: map<address, vector<FarmInvestment>>;
-
-// Mapping for all farms
-public var farms: map<address, Farm>;
-
-// Function to allow workers to invest in a farm
-public public fun invest_in_farm(worker: address, farm_id: address, amount: u64) {
-    let farm = farms[farm_id];
-    let investment = FarmInvestment {
-        worker_id: worker,
-        amount_invested: amount,
-        vote_for_farm_management: false, // Default vote (can be updated by the worker later)
-        farm_id: farm_id
-    };
-
-    // Add this investment to the worker's record
-    worker_investments[worker] = worker_investments[worker] + [investment];
-
-    // Update the farm's total investment
-    farm.total_investment = farm.total_investment + amount;
-    farm.workers_invested = farm.workers_invested + [worker];
-    farm.total_workers = farm.total_workers + 1;
-}
-
-// Function for workers to vote on whether they want the farm to manage produce/animals
-public public fun vote_on_farm_management(worker: address, farm_id: address, vote: bool) {
-    let investments = worker_investments[worker];
-    let investment = investments.filter(|i| i.farm_id == farm_id)[0];
-    
-    // Update the worker's vote for this specific farm
-    investment.vote_for_farm_management = vote;
-
-    // Update the worker's investments record
-    worker_investments[worker] = investments;
-
-    // Count the total votes for farm management (majority decision)
-    let farm = farms[farm_id];
-    let farm_management_votes = investments.filter(|i| i.farm_id == farm_id && i.vote_for_farm_management).length();
-    let total_votes = farm.total_workers;
-
-    // If majority of workers vote for farm management, update the status
-    if farm_management_votes > total_votes / 2 {
-        farm.farm_management_status = "Farm managed";
-    } else {
-        farm.farm_management_status = "Worker managed";
+    // Function to allow investments
+    public fun invest(farm: address, amount: u64) -> string {
+        if (amount == 0) {
+            return "Investment amount must be greater than zero";
+        }
+        self.farm_balances[farm] += amount;
+        return "Investment successful";
     }
 
-    // Update the farm in the global map
-    farms[farm_id] = farm;
-}
+    // Function to process payout request
+    public fun requestPayout(farm: address, proof: vector<field>, highGas: bool, networkIssue: bool) -> string {
+        if (!self.farm_balances.contains_key(farm)) {
+            return "Farm not found";
+        }
 
-// Function to check the investment status of a worker in a specific farm
-public public fun get_investment_status(worker: address, farm_id: address): FarmInvestment {
-    let investments = worker_investments[worker];
-    investments.filter(|i| i.farm_id == farm_id)[0]
+        // If high gas fees or network issues exist, trigger SubDAO voting
+        if (highGas || networkIssue) {
+            return self.triggerSubDAOVote(farm, proof);
+        }
+
+        // Otherwise, proceed directly with Merkle proof verification
+        return self.processPayout(farm, proof);
+    }
+
+    // Function to trigger SubDAO voting for payout decision
+    private fun triggerSubDAOVote(farm: address, proof: vector<field>) -> string {
+        let vote_id = SubDAOVoting::startVote(farm);
+        self.pending_votes[farm] = vec![];
+        return "SubDAO vote started for farm: " + farm.to_string();
+    }
+
+    // Function for SubDAO members to cast votes
+    public fun castVote(farm: address, voter: address, vote_option: u8) -> string {
+        if (!self.pending_votes.contains_key(farm)) {
+            return "No active vote for this farm";
+        }
+
+        // Ensure vote_option is within 0-3 range
+        if (vote_option > 3) {
+            return "Invalid vote option";
+        }
+
+        let mut votes = self.pending_votes[farm];
+        votes.push(vote_option);
+        self.pending_votes[farm] = votes;
+
+        // Check if majority vote has been reached
+        if (SubDAOVoting::hasMajority(votes)) {
+            return self.executeVoteDecision(farm);
+        }
+
+        return "Vote recorded";
+    }
+
+    // Function to execute payout based on vote results
+    private fun executeVoteDecision(farm: address) -> string {
+        let votes = self.pending_votes[farm];
+        let result = SubDAOVoting::tallyVotes(votes);
+
+        match result {
+            0 => self.executeFarmPayout(farm),  // Approve Farm Investment Payout
+            1 => "Redirected to Worker Identity Payout", // Approve Worker Identity Payout
+            2 => "Payout Delayed by SubDAO", // Delay Payout
+            3 => "Payout Denied by SubDAO", // Deny Payout
+            _ => "Invalid Vote Outcome"
+        }
+    }
+
+    // Function to execute a farm investment payout
+    private fun executeFarmPayout(farm: address) -> string {
+        let balance = self.farm_balances[farm];
+
+        if (balance > 0) {
+            self.farm_balances[farm] = 0; // Reset balance after payout
+            return "Farm Payout Successful: Paid " + balance.to_string();
+        } else {
+            return "Insufficient funds for payout";
+        }
+    }
+
+    // Function to check farm balance
+    public fun getBalance(farm: address) -> u64 {
+        return self.farm_balances.get_or_else(farm, 0);
+    }
 }
