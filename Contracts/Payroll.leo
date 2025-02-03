@@ -1,58 +1,109 @@
 program payroll.aleo;
 
-mapping payroll_balances:
-    key: address;  // Worker address
-    value: u64;    // Wages available
+mapping worker_data:
+    address as worker -> (u64, u8);  // (wages, industry_flag)
 
-mapping employer_contributions:
-    key: address;  // Employer address
-    value: u64;    // Funds set aside for worker payments
+mapping farm_investments:
+    address as farm -> u64;  // Tracks total investment per farm
 
-// New: Function to allocate wages toward farm ownership
-function allocate_wages(worker: address, farm: address, amount: u64) -> bool {
-    assert(amount > 0, "Allocation amount must be greater than zero");
+mapping worker_farms:
+    address as worker -> address as farm;  // Maps workers to farms
 
-    let worker_balance = payroll_balances.get(worker);
-    assert(worker_balance >= amount, "Insufficient wages");
+mapping pending_payments:
+    address as worker -> u64;  // Pending payments per worker
 
-    // Deduct from worker's payroll balance
-    let new_balance = worker_balance - amount;
-    payroll_balances.insert(worker, new_balance);
+// Processes wages for a worker, applying the payroll amount to their account.
+function process_payroll(worker: address, amount: u64) -> bool {
+    if !worker_data.contains(worker) {
+        return false;  // Worker not registered
+    }
 
-    // Call farm investment contract
-    let new_share = farm_investment::invest_in_farm(worker, farm, amount);
-    
-    return new_share > 0;
-}
+    let (current_wages, industry_flag) = worker_data.get(worker);
 
-// Function: Process payroll for workers
-function process_payroll(employer: address, worker: address, amount: u64) -> bool {
-    assert(amount > 0, "Payment amount must be greater than zero");
+    // Update worker's wages
+    worker_data.update(worker, (current_wages + amount, industry_flag));
 
-    let employer_balance = employer_contributions.get(employer);
-    assert(employer_balance >= amount, "Employer has insufficient funds");
-
-    // Deduct from employer's balance
-    let new_employer_balance = employer_balance - amount;
-    employer_contributions.insert(employer, new_employer_balance);
-
-    // Credit worker's payroll balance
-    let worker_balance = payroll_balances.get_or_use(worker, 0);
-    let new_worker_balance = worker_balance + amount;
-    payroll_balances.insert(worker, new_worker_balance);
+    // Add any pending payment amounts
+    if pending_payments.contains(worker) {
+        let pending = pending_payments.get(worker);
+        worker_data.update(worker, (worker_data.get(worker).0 + pending, industry_flag));
+        pending_payments.remove(worker);
+    }
 
     return true;
 }
 
-// Function: Workers withdraw available wages
-function withdraw_wages(worker: address, amount: u64) -> u64 {
-    assert(amount > 0, "Withdrawal amount must be greater than zero");
+// Allows agricultural workers to invest in a farm
+function invest_in_farm(worker: address, amount: u64) -> bool {
+    if !worker_data.contains(worker) {
+        return false;  // Worker not registered
+    }
 
-    let worker_balance = payroll_balances.get(worker);
-    assert(worker_balance >= amount, "Insufficient funds");
+    let (_, industry_flag) = worker_data.get(worker);
 
-    let new_balance = worker_balance - amount;
-    payroll_balances.insert(worker, new_balance);
+    // Check if worker has AG industry flag (must be agricultural worker)
+    if industry_flag & 0b01 == 0 {
+        return false;  // Must have AG role (bitmask check)
+    }
 
-    return amount;  // Worker receives their withdrawn wages
+    // Ensure the worker is assigned to a farm
+    let farm = worker_farms.get(worker);
+    if farm == address(0) {
+        return false;  // Worker must be assigned to a farm
+    }
+
+    // Update farm investment
+    farm_investments.update(farm, farm_investments.get(farm) + amount);
+    return true;
+}
+
+// Worker can add funds to their pending payments
+function add_pending_payment(worker: address, amount: u64) -> bool {
+    if !worker_data.contains(worker) {
+        return false;  // Worker not registered
+    }
+
+    // Add amount to pending payments
+    if pending_payments.contains(worker) {
+        let current_pending = pending_payments.get(worker);
+        pending_payments.update(worker, current_pending + amount);
+    } else {
+        pending_payments.insert(worker, amount);
+    }
+
+    return true;
+}
+
+// Worker can withdraw from their pending payments (if any).
+function withdraw_pending_payment(worker: address, amount: u64) -> bool {
+    if !worker_data.contains(worker) {
+        return false;  // Worker not registered
+    }
+
+    // Ensure worker has sufficient pending funds
+    if !pending_payments.contains(worker) || pending_payments.get(worker) < amount {
+        return false;  // Insufficient pending funds
+    }
+
+    // Reduce pending payment
+    let current_pending = pending_payments.get(worker);
+    pending_payments.update(worker, current_pending - amount);
+    return true;
+}
+
+// Assign a worker to a farm. Only permitted for agricultural workers.
+function assign_worker_to_farm(worker: address, farm: address) -> bool {
+    if !worker_data.contains(worker) {
+        return false;  // Worker not registered
+    }
+
+    // Get industry flag to confirm if it's an agricultural worker
+    let (_, industry_flag) = worker_data.get(worker);
+    if industry_flag & 0b01 == 0 {
+        return false;  // Worker must have AG role
+    }
+
+    // Assign worker to the farm
+    worker_farms.insert(worker, farm);
+    return true;
 }
