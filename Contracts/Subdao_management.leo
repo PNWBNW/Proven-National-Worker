@@ -22,7 +22,7 @@ public struct SubDAO {
 public var subdaos: map<address, SubDAO>;
 
 // Function to create a SubDAO with the ability to invest in farms
-public fund create_subdao(subdao_id: address, members: vector<address>, management_vote_threshold: u64) {
+public public fun create_subdao(subdao_id: address, members: vector<address>, management_vote_threshold: u64) {
     let subdao = SubDAO {
         subdao_id: subdao_id,
         members: members,
@@ -36,7 +36,7 @@ public fund create_subdao(subdao_id: address, members: vector<address>, manageme
 }
 
 // Function to allow a SubDAO to vote on farm management
-public fund subdao_vote_on_farm_management(subdao_id: address, farm_id: address, vote: bool) {
+public public fun subdao_vote_on_farm_management(subdao_id: address, farm_id: address, vote: bool) {
     let subdao = subdaos[subdao_id];
     
     // Ensure the SubDAO has members and there are votes to count
