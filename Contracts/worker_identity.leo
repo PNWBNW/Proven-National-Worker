@@ -1,125 +1,56 @@
-// SPDX-License-Identifier: proprietary 
-// Worker Identity contract for PNW Smart Contracts
+// Worker Identity Smart Contract
 
-// Enum for worker industry types
-enum Industry {
-    Agriculture,
-    Technology,
-    Manufacturing,
-    Service,
-    Other,
+// Struct to store Worker Identity details
+struct WorkerIdentity {
+    address worker_address;     // Unique address of the worker
+    string name;               // Name of the worker
+    bool is_agriculture_worker; // Flag to identify if the worker is an agricultural worker
+    u64 industry_verification;  // Industry-specific verification code
+    u64 investable_amount;      // Track total investable amount for the worker
+    bool is_eligible_for_investment; // Flag to track if the worker is eligible to invest
+    u64 investment_threshold;   // Minimum investment threshold for eligibility
+    u64 total_investment;       // Total amount invested by the worker
 }
 
-// Struct for storing worker details
-struct Worker {
-    worker_address: address,
-    industry_type: Industry, // Worker industry type (Agriculture, Technology, etc.)
-    is_agricultural_worker: bool, // Indicates whether the worker is eligible to invest in agriculture
-    investment_balance: u64, // Worker balance of investments in the agriculture farm
-}
-
-// State to store workers' information (mapped by address)
-state worker_identity: map<address, Worker>;
-
-// Function to register a new worker with their industry and investment eligibility
-public fun register_worker(worker: address, industry_type: Industry, is_agricultural_worker: bool) {
-    // Check if the worker is already registered
-    if (worker_identity.contains(worker)) {
-        error("Worker already registered.");
-    }
-
-    // Create a new Worker struct with the provided details
-    let new_worker = Worker {
-        worker_address: worker,
-        industry_type: industry_type,
-        is_agricultural_worker: is_agricultural_worker,
-        investment_balance: 0,  // Initial investment balance set to 0
+// Initialize a worker identity
+public fun init_worker(worker_address: address, name: string, industry_verification: u64, investable_amount: u64): WorkerIdentity {
+    let industry_threshold = 1000; // Set the threshold for eligibility to invest
+    let is_eligible = investable_amount >= industry_threshold;
+    
+    return WorkerIdentity {
+        worker_address,
+        name,
+        is_agriculture_worker = false, // Default, change based on worker's sector later
+        industry_verification,
+        investable_amount,
+        is_eligible_for_investment = is_eligible,
+        investment_threshold = industry_threshold,
+        total_investment = 0,
     };
-
-    // Register the new worker in the state
-    worker_identity.insert(worker, new_worker);
 }
 
-// Function to update a worker's industry type
-public fun update_worker_industry(worker: address, industry_type: Industry) {
-    // Check if the worker is registered
-    let current_worker = worker_identity.get(worker).unwrap_or(error("Worker not registered."));
-    
-    // Update the worker's industry type
-    current_worker.industry_type = industry_type;
-    
-    // Update the worker record in state
-    worker_identity.insert(worker, current_worker);
+// Update worker's investable amount
+public fun update_investable_amount(worker: &mut WorkerIdentity, new_amount: u64) {
+    worker.investable_amount = new_amount;
+    worker.is_eligible_for_investment = new_amount >= worker.investment_threshold;
 }
 
-// Function to check if a worker is eligible to invest in agriculture (specifically for agricultural workers)
-public fun is_agricultural_worker(worker: address) -> bool {
-    let current_worker = worker_identity.get(worker).unwrap_or(error("Worker not registered."));
-    return current_worker.is_agricultural_worker;
+// Mark worker as an agriculture worker
+public fun mark_as_agriculture_worker(worker: &mut WorkerIdentity) {
+    worker.is_agriculture_worker = true;
 }
 
-// Function to check if a worker belongs to a specific industry
-public fun worker_industry(worker: address) -> Industry {
-    let current_worker = worker_identity.get(worker).unwrap_or(error("Worker not registered."));
-    return current_worker.industry_type;
+// Mark worker as eligible for farm investment
+public fun mark_as_eligible(worker: &mut WorkerIdentity) {
+    worker.is_eligible_for_investment = worker.investable_amount >= worker.investment_threshold;
 }
 
-// Function to add agricultural investment for a worker
-public fun add_agricultural_investment(worker: address, amount: u64) {
-    // Check if the worker is registered and is eligible to invest
-    let mut current_worker = worker_identity.get(worker).unwrap_or(error("Worker not registered."));
-    
-    if !current_worker.is_agricultural_worker {
-        error("Worker is not eligible to invest in agriculture.");
-    }
-
-    // Increase the worker's investment balance in agriculture
-    current_worker.investment_balance = current_worker.investment_balance + amount;
-    
-    // Update the worker record in state
-    worker_identity.insert(worker, current_worker);
+// Function to add investments to the worker's record
+public fun add_investment(worker: &mut WorkerIdentity, amount: u64) {
+    worker.total_investment = worker.total_investment + amount;
 }
 
-// Function to remove agricultural investment for a worker
-public fun remove_agricultural_investment(worker: address, amount: u64) {
-    // Check if the worker is registered and has sufficient investment
-    let mut current_worker = worker_identity.get(worker).unwrap_or(error("Worker not registered."));
-    
-    if !current_worker.is_agricultural_worker {
-        error("Worker is not eligible to invest in agriculture.");
-    }
-    
-    if current_worker.investment_balance < amount {
-        error("Insufficient investment balance.");
-    }
-
-    // Decrease the worker's investment balance in agriculture
-    current_worker.investment_balance = current_worker.investment_balance - amount;
-    
-    // Update the worker record in state
-    worker_identity.insert(worker, current_worker);
-}
-
-// Function to check a worker's agricultural investment balance
-public fun get_agricultural_investment_balance(worker: address) -> u64 {
-    let current_worker = worker_identity.get(worker).unwrap_or(error("Worker not registered."));
-    return current_worker.investment_balance;
-}
-
-// Function to get the total agricultural investment from all workers (for SubDAO or farm tracking purposes)
-public fun get_total_agricultural_investment() -> u64 {
-    let all_workers = worker_identity.values();
-    let total_investment = all_workers.fold(0, |acc, worker| {
-        if worker.is_agricultural_worker {
-            acc + worker.investment_balance
-        } else {
-            acc
-        }
-    });
-    return total_investment;
-}
-
-// Function to remove a worker from the system (in case of deactivation, etc.)
-public fun remove_worker(worker: address) {
-    worker_identity.remove(worker);
+// Check if worker is eligible to invest in farm-related projects
+public fun can_invest_in_farm(worker: &WorkerIdentity): bool {
+    return worker.is_agriculture_worker && worker.is_eligible_for_investment;
 }
