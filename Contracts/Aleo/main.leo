@@ -1,106 +1,121 @@
-// PNW Smart Contract - Core Logic
-// SPDX-License-Identifier: Proprietary
+// SPDX-License-Identifier: proprietary 
+// Main contract for PNW SubDAOs with Farm Investment logic
 
-program main.aleo;
+// Include required imports
+import 0xPNW::worker_identity;
+import 0xPNW::farm_investment;
 
-// Imports
-import worker_identity.aleo;
-import payroll.aleo;
-import compliance_tracking.aleo;
-import subdao_management.aleo;
-import government_api.aleo;
-
-// Structs
-struct Worker {
-    address worker_address;
-    u64 worker_id;
-    field wage_rate;
-    bool is_active;
+// SubDAO structure to hold basic information about each SubDAO
+struct SubDAO {
+    id: u32,                  // Unique ID for the SubDAO
+    name: string,             // Name of the SubDAO
+    total_investment: u64,    // Total investment in the farm by workers of this SubDAO
+    farm_control: bool,       // Whether the SubDAO manages its own produce and marketplace
+    investment_pool: set<address>,  // Set of workers who have invested in the farm
 }
 
-struct Employer {
-    address employer_address;
-    u64 employer_id;
-    field prepaid_wages;
-    field prepaid_taxes;
-    bool is_compliant;
+// State to track SubDAOs
+state subdaos: map<u32, SubDAO>;  // Map of SubDAO ID to SubDAO details
+state next_subdao_id: u32 = 1;    // Automatically incrementing ID for new SubDAOs
+
+// Function to create a new SubDAO
+public function create_subdao(name: string) -> u32 {
+    let id = next_subdao_id;
+    next_subdao_id += 1;
+
+    let new_subdao = SubDAO {
+        id: id,
+        name: name,
+        total_investment: 0,
+        farm_control: true,  // Default farm control to the SubDAO (initially)
+        investment_pool: set<address>::new(),
+    };
+
+    subdaos.insert(id, new_subdao);
+    return id;
 }
 
-// Mappings
-mapping address -> Worker workers;
-mapping address -> Employer employers;
+// Function for workers to invest in a farm within a SubDAO
+public function invest_in_farm(subdao_id: u32, amount: u64) {
+    let worker = msg.sender;  // Get the worker's address from the transaction sender
+    
+    // Ensure that the worker is eligible for agricultural investment
+    if !worker_identity.is_agricultural_worker(worker) {
+        error("Worker is not eligible to invest in farm.");
+    }
 
-// Functions
+    // Add investment to the farm pool for the given SubDAO
+    farm_investment.add_investment_to_farm(subdao_id, worker, amount);
 
-// Register a new worker
-function register_worker(address worker_addr, u64 worker_id, field wage_rate) -> bool {
-    assert !workers.contains(worker_addr);
-    workers[worker_addr] = Worker { worker_addr, worker_id, wage_rate, true };
-    return true;
+    // Update the total investment for the SubDAO
+    let subdao = subdaos.get(subdao_id).unwrap();
+    let updated_subdao = SubDAO {
+        id: subdao.id,
+        name: subdao.name,
+        total_investment: subdao.total_investment + amount,
+        farm_control: subdao.farm_control,
+        investment_pool: subdao.investment_pool.add(worker),
+    };
+
+    subdaos.insert(subdao_id, updated_subdao);
 }
 
-// Register a new employer
-function register_employer(address employer_addr, u64 employer_id, field prepaid_wages, field prepaid_taxes) -> bool {
-    assert !employers.contains(employer_addr);
-    employers[employer_addr] = Employer { employer_addr, employer_id, prepaid_wages, prepaid_taxes, true };
-    return true;
+// Function to remove investment from farm pool
+public function withdraw_investment_from_farm(subdao_id: u32, amount: u64) {
+    let worker = msg.sender;  // Get the worker's address
+
+    // Ensure that the worker has made an investment
+    if !farm_investment.has_investment_in_farm(subdao_id, worker) {
+        error("Worker has no investment to withdraw.");
+    }
+
+    // Remove the investment from the farm pool
+    farm_investment.remove_investment_from_farm(subdao_id, worker, amount);
+
+    // Update the total investment for the SubDAO
+    let subdao = subdaos.get(subdao_id).unwrap();
+    let updated_subdao = SubDAO {
+        id: subdao.id,
+        name: subdao.name,
+        total_investment: subdao.total_investment - amount,
+        farm_control: subdao.farm_control,
+        investment_pool: subdao.investment_pool.remove(worker),
+    };
+
+    subdaos.insert(subdao_id, updated_subdao);
 }
 
-// Process payroll for a worker
-function process_payroll(address worker_addr, address employer_addr, field amount) -> bool {
-    assert workers.contains(worker_addr);
-    assert employers.contains(employer_addr);
+// Function for workers to vote on the farm control option (SubDAO or external farm management)
+public function vote_on_farm_control(subdao_id: u32, control_choice: bool) {
+    let worker = msg.sender;  // Get the worker's address
 
-    let employer = employers[employer_addr];
-    let worker = workers[worker_addr];
+    // Ensure the worker has invested in the farm before voting
+    if !farm_investment.has_investment_in_farm(subdao_id, worker) {
+        error("Worker must have invested in the farm to vote.");
+    }
 
-    assert employer.prepaid_wages >= amount;
-    
-    employer.prepaid_wages -= amount;
-    payroll::pay_worker(worker_addr, amount);
-    
-    employers[employer_addr] = employer;
-    
-    return true;
+    // Update the SubDAO's control choice (either manage internally or let farm manage)
+    let subdao = subdaos.get(subdao_id).unwrap();
+    let updated_subdao = SubDAO {
+        id: subdao.id,
+        name: subdao.name,
+        total_investment: subdao.total_investment,
+        farm_control: control_choice,
+        investment_pool: subdao.investment_pool,
+    };
+
+    subdaos.insert(subdao_id, updated_subdao);
 }
 
-// Verify employer compliance before payroll
-function verify_compliance(address employer_addr) -> bool {
-    assert employers.contains(employer_addr);
-    
-    let employer = employers[employer_addr];
-    employer.is_compliant = compliance_tracking::check_compliance(employer_addr);
-    
-    employers[employer_addr] = employer;
-    
-    return employer.is_compliant;
+// Function to view the total investment in a SubDAO's farm
+public function get_total_investment(subdao_id: u32) -> u64 {
+    let subdao = subdaos.get(subdao_id).unwrap();
+    return subdao.total_investment;
 }
 
-// Employer tax top-up
-function top_up_taxes(address employer_addr, field amount) -> bool {
-    assert employers.contains(employer_addr);
-    
-    let employer = employers[employer_addr];
-    employer.prepaid_taxes += amount;
-    
-    employers[employer_addr] = employer;
-    
-    return true;
-}
-
-// Worker reporting employer for violations
-function report_employer(address worker_addr, address employer_addr, string reason) -> bool {
-    assert workers.contains(worker_addr);
-    assert employers.contains(employer_addr);
-
-    let success = compliance_tracking::report_violation(employer_addr, reason);
-    return success;
-}
-
-// Enforce penalties on non-compliant employers
-function enforce_penalty(address employer_addr) -> bool {
-    assert employers.contains(employer_addr);
-
-    let success = compliance_tracking::apply_penalty(employer_addr);
-    return success;
+// Function to check if a worker has voted on the farm control
+public function has_voted_for_farm_control(subdao_id: u32, worker: address) -> bool {
+    // We assume each worker votes once, and the vote is recorded with the SubDAO's farm control setting
+    let subdao = subdaos.get(subdao_id).unwrap();
+    return subdao.investment_pool.contains(worker);
 }
