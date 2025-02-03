@@ -1,63 +1,79 @@
-// SubDAO Management Smart Contract
+// subdao_management.leo
+import 0x01 from "leo";
 
-// Struct to define a SubDAO
-struct SubDAO {
-    address subdao_address;          // The address of the SubDAO
-    vector<address> worker_addresses;  // List of worker addresses in the SubDAO
-    u64 total_investment;            // Total investment in farms by workers
-    bool manage_farm_produce;        // Whether the SubDAO will manage farm produce/animals
-}
-
-// Initialize a new SubDAO
-public fun init_subdao(subdao_address: address, worker_addresses: vector<address>): SubDAO {
-    assert(worker_addresses.len() <= 5000, 101, "SubDAO member limit exceeded.");
-
-    return SubDAO {
-        subdao_address,
-        worker_addresses,
-        total_investment = 0,
-        manage_farm_produce = false, // Default to farm management not allowed
-    };
-}
-
-// Add a worker to the SubDAO
-public fun add_worker_to_subdao(subdao: &mut SubDAO, worker_address: address) {
-    assert(subdao.worker_addresses.len() < 5000, 102, "Cannot add more than 5000 workers to SubDAO.");
-    subdao.worker_addresses.push(worker_address);
-}
-
-// Update total investment in farms by the SubDAO's workers
-public fun update_total_investment(subdao: &mut SubDAO, investment_amount: u64) {
-    subdao.total_investment = subdao.total_investment + investment_amount;
-}
-
-// Vote on whether the SubDAO should manage farm produce and animals
-public fun vote_on_farm_management(subdao: &mut SubDAO, vote: bool) {
-    // Only workers who have invested in the farm can vote
-    let eligible_voters = subdao.worker_addresses.filter(|worker| has_invested_in_farm(worker));
+public struct SubDAO {
+    // SubDAO ID to uniquely identify the subDAO
+    subdao_id: address,
     
-    assert(eligible_voters.len() > 0, 103, "No eligible voters for this decision.");
+    // List of members in the SubDAO
+    members: vector<address>,
 
-    let votes_for_management = eligible_voters.filter(|worker| worker_votes_for(worker, vote)).len();
-    let votes_needed = eligible_voters.len() / 2; // Majority needed
+    // Farm investments linked to the SubDAO
+    farm_investments: vector<FarmInvestment>,
 
-    if votes_for_management > votes_needed {
-        subdao.manage_farm_produce = true;
-    } else {
-        subdao.manage_farm_produce = false;
+    // Voting threshold for farm management decisions
+    management_vote_threshold: u64,
+
+    // Vote results (0 - farm managed, 1 - worker managed)
+    management_vote_result: u64
+}
+
+// Mapping for all SubDAOs
+public var subdaos: map<address, SubDAO>;
+
+// Function to create a SubDAO with the ability to invest in farms
+public public fun create_subdao(subdao_id: address, members: vector<address>, management_vote_threshold: u64) {
+    let subdao = SubDAO {
+        subdao_id: subdao_id,
+        members: members,
+        farm_investments: [],
+        management_vote_threshold: management_vote_threshold,
+        management_vote_result: 0, // Default value for no decision
+    };
+    
+    // Store the SubDAO
+    subdaos[subdao_id] = subdao;
+}
+
+// Function to allow a SubDAO to vote on farm management
+public public fun subdao_vote_on_farm_management(subdao_id: address, farm_id: address, vote: bool) {
+    let subdao = subdaos[subdao_id];
+    
+    // Ensure the SubDAO has members and there are votes to count
+    let total_members = subdao.members.length();
+    if total_members == 0 {
+        abort("SubDAO has no members");
     }
+
+    // Count the total votes in favor of the farm management decision
+    let mut total_votes = 0;
+
+    // Loop through each member's investment to count votes
+    for member in subdao.members {
+        let investments = worker_investments[member];
+        let investment = investments.filter(|i| i.farm_id == farm_id)[0];
+        
+        // Increment total votes if the worker has voted for farm management
+        if investment.vote_for_farm_management {
+            total_votes = total_votes + 1;
+        }
+    }
+
+    // If the total votes exceed the management threshold, update the decision
+    if total_votes > subdao.management_vote_threshold {
+        // Farm will be managed by farm
+        subdao.management_vote_result = 0;
+    } else {
+        // Worker managed
+        subdao.management_vote_result = 1;
+    }
+
+    // Update the SubDAO record
+    subdaos[subdao_id] = subdao;
 }
 
-// Function to check if a worker has invested in a farm
-public fun has_invested_in_farm(worker: address): bool {
-    // Retrieve the worker's payroll details from the appropriate data store
-    let payroll = get_payroll_details(worker);  // Assuming this function is defined elsewhere
-    return payroll.farm_investment > 0;
-}
-
-// Function for workers to vote on the proposal
-public fun worker_votes_for(worker: address, vote: bool): bool {
-    // Retrieve the worker's vote from the appropriate data store
-    let worker_vote = get_worker_vote(worker);  // Assuming this function is defined elsewhere
-    return worker_vote == vote;
+// Function to check the current farm management vote result in a SubDAO
+public public fun get_subdao_farm_management_result(subdao_id: address): u64 {
+    let subdao = subdaos[subdao_id];
+    subdao.management_vote_result
 }
