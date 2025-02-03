@@ -1,58 +1,77 @@
-PNW Smart Contract License  
-Version 1.4, 2025  
+# PNW Smart Contract License  
+**Version 1.6, 2025**  
 
-Copyright (c) 2025 [Joshua Daniel Day]  
+**Copyright (c) 2025 [Joshua Daniel Day]**  
 
 Permission is hereby granted, free of charge, to authorized users obtaining a copy of this software  
 and associated documentation files (the "Software"), to use, modify, and deploy the Software  
-strictly within the scope of the Proven Non-Citizen Workers (PNW) platform,  
+strictly within the scope of the **Proven Non-Citizen Workers (PNW) platform**,  
 subject to the following conditions:  
 
-1. **Restricted Use**:  
-   - This Software is proprietary and may not be redistributed, sublicensed, or publicly disclosed  
-     without explicit written permission from [Joshua Daniel Day].  
+## 1. Restricted Use  
+- This Software is **proprietary** and may not be redistributed, sublicensed, or publicly disclosed  
+  without **explicit written permission** from **[Joshua Daniel Day]**.  
+- The Software **may not be resold, transferred, or sublicensed** without a direct agreement with the original author.  
+- Unauthorized use outside the PNW platform is strictly **prohibited**.  
 
-2. **Prohibition Against AI, Government, or Third-Party Control**:  
-   - No artificial intelligence (AI), autonomous system, government entity, or third party may:  
-     - Take ownership, modify governance mechanisms, or exert control over this Software.  
-     - Override SubDAO voting, payroll processing authority, or platform governance.  
-   - AI-based decision-making may only be used for optional analytics or enhancements but  
-     **must not replace human governance or operational control**.  
-   - No government agency or external entity may seize control, impose modifications,  
-     or enforce centralized management outside the PNW ecosystem.  
+## 2. Protection Against AI, Government, or Third-Party Control  
+- No **Artificial Intelligence (AI), autonomous system, government agency, or third party** may:  
+  - Claim ownership, modify governance mechanisms, or exert control over this Software.  
+  - Override **SubDAO voting, payroll processing, or platform governance**.  
+  - Introduce **automated enforcement policies** that remove decision-making from human governance.  
+- AI may **only** be used for **analytics, fraud detection, or performance optimization**,  
+  but it **must not** replace human oversight.  
+- No government entity or external force may **seize, modify, or mandate centralized control** over the Software.  
 
-3. **Prohibition on Hostile Forks & Clones**:  
-   - No entity may fork, clone, or create a derivative version of this Software  
-     with the intention of removing or bypassing these protections.  
-   - Any forked version must comply fully with this **original** license and governance structure.  
-   - Unauthorized forks will be considered a **violation**, subject to legal enforcement.  
+## 3. Prohibition on Hostile Forks, Clones & Governance Modifications  
+- No entity may **fork, clone, or create a derivative version** of this Software with the intention of:  
+  - **Removing governance protections** outlined in this license.  
+  - **Bypassing compliance mechanisms** within the PNW ecosystem.  
+- Any forked or modified version must:  
+  - **Retain** this license and governance structure.  
+  - **Obtain written approval** from [Joshua Daniel Day] before deployment.  
+- **Unauthorized forks** will be treated as a **violation**, subject to legal enforcement.  
 
-4. **Modification & Deployment**:  
-   - Modifications to the Software are permitted only for integration within the PNW ecosystem.  
-   - Any modified versions must retain this license and be reviewed by [Joshua Daniel Day]  
-     before deployment.  
+## 4. Ownership Succession & Licensing Terms  
+- If ownership of this Software is transferred voluntarily:  
+  - The new owner **must abide by this license in full**.  
+  - **Resale, sublicensing, or further transfers require prior written consent**.  
+- **In the event of the original author’s passing or incapacitation**:  
+  - **Full ownership** of the Software shall transfer to **the author's daughter**.  
+  - **Oversight and management** of the Software shall be granted to **the author's parents**  
+    until the daughter reaches the age of 18.  
+  - No modifications, transfers, or sublicensing may occur during this period  
+    without oversight approval.  
+- The original author retains **final approval** over any future modifications or commercial licensing  
+  while they are active.  
 
-5. **Enforcement & Penalties**:  
-   - Any attempt to violate these restrictions will result in **legal action**,  
-     including potential financial penalties or blacklisting from PNW-related services.  
+## 5. Modification & Deployment  
+- Modifications are **permitted only** for integration within the PNW ecosystem.  
+- All modified versions must:  
+  - **Retain this license**.  
+  - **Undergo review** by [Joshua Daniel Day] (or successor, per Section 4) before deployment.  
+- Unauthorized deployment outside the PNW ecosystem **is strictly prohibited**.  
 
-6. **Jurisdiction & Legal Governance**:  
-   - This license shall be **governed by and interpreted under the laws of [Douglas County, Washington]**.  
-   - Any disputes arising from this license shall be settled in the courts of [Douglas County, Wa].  
+## 6. Enforcement & Penalties  
+- Any violation of this license may result in:  
+  - **Legal action**, including financial penalties.  
+  - **Permanent blacklisting** from PNW-related services.  
+  - **Revocation of all rights to use the Software**.  
 
-7. **No Warranty**:  
-   - The Software is provided "as is", without warranty of any kind, express or implied,  
-     including but not limited to warranties of merchantability, fitness for a particular purpose,  
-     or non-infringement.  
+## 7. Jurisdiction & Legal Governance  
+- This license shall be **governed by and interpreted under the laws of [Douglas County, Washington]**.  
+- Any disputes arising from this license shall be settled in the courts of **[Douglas County, WA]**.  
 
-8. **Liability Limitation**:  
-   - In no event shall the authors or copyright holders be liable for any claim, damages,  
-     or other liability arising from the use of the Software.  
+## 8. No Warranty  
+- The Software is provided **"as is"**, without warranty of any kind, express or implied.  
+- The author disclaims all liability, including but not limited to:  
+  - **Merchantability, fitness for a particular purpose, or non-infringement**.  
+  - **Financial or operational damages arising from use of the Software**.  
 
-9. **Compliance**:  
-   - Users must comply with all applicable laws and regulations when utilizing the Software.  
+## 9. Compliance Requirements  
+- Users **must comply** with all applicable local, state, and international laws  
+  when utilizing the Software.  
 
-10. **Termination**:  
-   - Any breach of this license will result in immediate termination of usage rights.  
+---
 
 For inquiries regarding licensing, please contact: **[pnw.x.farms@gmail.com]**
