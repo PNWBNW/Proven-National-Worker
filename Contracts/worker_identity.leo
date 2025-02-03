@@ -1,45 +1,58 @@
-// Worker Identity Smart Contract
+import DateTime;
+import MerkleHelper;
+import NetworkStatus;
 
-// Struct to store Worker Identity details
-struct WorkerIdentity {
-    address worker_address;     // Unique address of the worker
-    string name;               // Name of the worker
-    bool is_agriculture_worker; // Flag to identify if the worker is an agricultural worker
-    u64 industry_verification;  // Industry-specific verification code
-    u64 investable_amount;      // Track total investable amount for the worker
-    bool is_eligible_for_investment; // Flag to track if the worker is eligible to invest
-    u64 total_investment;       // Total amount invested by the worker
-}
+contract WorkerIdentity {
 
-// Initialize a worker identity
-public fun init_worker(worker_address: address, name: string, industry_verification: u64, investable_amount: u64): WorkerIdentity {
-    return WorkerIdentity {
-        worker_address,
-        name,
-        is_agriculture_worker = false, // Default, change based on worker's sector later
-        industry_verification,
-        investable_amount,
-        is_eligible_for_investment = true, // No minimum threshold, all workers are eligible to invest
-        total_investment = 0,
-    };
-}
+    state worker_id: u64;  
+    state total_wages: field;  
+    state payout_last_processed: DateTime;  
 
-// Update worker's investable amount
-public fun update_investable_amount(worker: &mut WorkerIdentity, new_amount: u64) {
-    worker.investable_amount = new_amount;
-}
+    // Function to process worker identity payouts
+    public fun processWorkerIdentityPayout(proof: vector<field>, leaf: field) -> string {
+        // Check if it's the 1st of the month
+        if (!self.isPayoutDay()) {
+            return "Payouts are only allowed on the 1st of each month";
+        }
 
-// Mark worker as an agriculture worker
-public fun mark_as_agriculture_worker(worker: &mut WorkerIdentity) {
-    worker.is_agriculture_worker = true;
-}
+        // Check network health before proceeding
+        if (!self.isNetworkHealthy()) {
+            return "Network congestion detected: SubDAO vote required";
+        }
 
-// Function to add investments to the worker's record
-public fun add_investment(worker: &mut WorkerIdentity, amount: u64) {
-    worker.total_investment = worker.total_investment + amount;
-}
+        // Verify the Merkle proof before proceeding with the payout logic
+        let contract_decision = MerkleHelper::verifyMerkleProof(MerkleHelper::getMerkleRoot(), leaf, proof);
+        if (contract_decision != "worker_identity") {
+            return "Invalid contract decision";
+        }
 
-// Check if worker is eligible to invest in farm-related projects
-public fun can_invest_in_farm(worker: &WorkerIdentity): bool {
-    return worker.is_agriculture_worker; // Any agricultural worker can invest
+        // Proceed with the payout process if conditions are met
+        self.executePayout();
+        return "Worker identity payout processed successfully";
+    }
+
+    // Function to execute payout
+    private fun executePayout() {
+        let payout_amount = self.total_wages;
+
+        // Logic for executing the payout goes here
+        // Transfer funds, update states, etc.
+        self.total_wages = 0;  // Reset after payout
+        self.payout_last_processed = DateTime::getCurrentDate();
+    }
+
+    // Function to check if today is the 1st of the month
+    private fun isPayoutDay() -> bool {
+        let today = DateTime::getCurrentDate();
+        return today.day == 1;
+    }
+
+    // Function to check network health before executing payouts
+    private fun isNetworkHealthy() -> bool {
+        let gas_fee = NetworkStatus::getGasFee();
+        let latency = NetworkStatus::getLatency();
+
+        // Set a threshold for gas fees and latency
+        return !(gas_fee > 2 * NetworkStatus::get30DayAvgGasFee() || latency > NetworkStatus::getHighLatencyThreshold());
+    }
 }
