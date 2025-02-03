@@ -1,60 +1,58 @@
 program payroll.aleo;
 
 mapping payroll_balances:
-    key: address;
-    value: u64;
+    key: address;  // Worker address
+    value: u64;    // Wages available
 
-mapping employer_tax_fund:
-    key: address;
-    value: u64;
+mapping employer_contributions:
+    key: address;  // Employer address
+    value: u64;    // Funds set aside for worker payments
 
-mapping worker_taxes:
-    key: address;
-    value: u64;
+// New: Function to allocate wages toward farm ownership
+function allocate_wages(worker: address, farm: address, amount: u64) -> bool {
+    assert(amount > 0, "Allocation amount must be greater than zero");
 
-function deposit_payroll_funds(employer: address, amount: u64) -> bool {
-    payroll_balances[employer] += amount;
+    let worker_balance = payroll_balances.get(worker);
+    assert(worker_balance >= amount, "Insufficient wages");
+
+    // Deduct from worker's payroll balance
+    let new_balance = worker_balance - amount;
+    payroll_balances.insert(worker, new_balance);
+
+    // Call farm investment contract
+    let new_share = farm_investment::invest_in_farm(worker, farm, amount);
+    
+    return new_share > 0;
+}
+
+// Function: Process payroll for workers
+function process_payroll(employer: address, worker: address, amount: u64) -> bool {
+    assert(amount > 0, "Payment amount must be greater than zero");
+
+    let employer_balance = employer_contributions.get(employer);
+    assert(employer_balance >= amount, "Employer has insufficient funds");
+
+    // Deduct from employer's balance
+    let new_employer_balance = employer_balance - amount;
+    employer_contributions.insert(employer, new_employer_balance);
+
+    // Credit worker's payroll balance
+    let worker_balance = payroll_balances.get_or_use(worker, 0);
+    let new_worker_balance = worker_balance + amount;
+    payroll_balances.insert(worker, new_worker_balance);
+
     return true;
 }
 
-function deposit_tax_funds(employer: address, tax_amount: u64) -> bool {
-    employer_tax_fund[employer] += tax_amount;
-    return true;
-}
+// Function: Workers withdraw available wages
+function withdraw_wages(worker: address, amount: u64) -> u64 {
+    assert(amount > 0, "Withdrawal amount must be greater than zero");
 
-function process_payroll(worker: address, employer: address, wage: u64, tax_rate: u64) -> bool {
-    let total_tax = (wage * tax_rate) / 100;
-    let net_pay = wage - total_tax;
+    let worker_balance = payroll_balances.get(worker);
+    assert(worker_balance >= amount, "Insufficient funds");
 
-    if payroll_balances[employer] < wage {
-        return false;
-    }
+    let new_balance = worker_balance - amount;
+    payroll_balances.insert(worker, new_balance);
 
-    if employer_tax_fund[employer] < total_tax {
-        return false;
-    }
-
-    payroll_balances[employer] -= wage;
-    employer_tax_fund[employer] -= total_tax;
-    worker_taxes[worker] += total_tax;
-
-    return credit_worker(worker, net_pay);
-}
-
-function credit_worker(worker: address, amount: u64) -> bool {
-    payroll_balances[worker] += amount;
-    return true;
-}
-
-function pay_government(worker: address, government: address) -> bool {
-    let tax_due = worker_taxes[worker];
-
-    if tax_due == 0 {
-        return false;
-    }
-
-    worker_taxes[worker] = 0;
-    payroll_balances[government] += tax_due;
-
-    return true;
+    return amount;  // Worker receives their withdrawn wages
 }
