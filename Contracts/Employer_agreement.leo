@@ -1,102 +1,106 @@
-program employer_agreement.aleo;
+// SPDX-License-Identifier: proprietary
+// Employer Agreement contract for PNW Smart Contracts (with SubDAO access to produce and animals management)
 
-mapping employer_registry:
-    key: address;
-    value: (u64, u64, u64, bool); // (prepaid_wages, prepaid_taxes, last_payment_timestamp, is_blacklisted)
+// Import relevant modules for SubDAO management and investment tracking
+import 0x1::subdao_management;
+import 0x1::worker_identity;
+import 0x1::farm_investment;
 
-mapping employer_tax_fund:
-    key: address;
-    value: u64; // Employer's tax fund balance
-
-mapping blacklisted_employers:
-    key: address;
-    value: u64; // Timestamp of blacklist entry
-
-function register_employer(employer: address, initial_wages: u64, initial_taxes: u64) -> bool {
-    if employer_registry.contains(employer) {
-        return false; // Employer already registered
-    }
-
-    employer_registry[employer] = (initial_wages, initial_taxes, get_block_height(), false);
-    employer_tax_fund[employer] = initial_taxes;
-
-    return true;
+// Enum for farm management preferences (farm or worker marketplace)
+enum FarmManagementOption {
+    FarmManaged,   // Farm manages the produce/animals and related processes
+    WorkerManaged, // Workers manage the produce/animals and set up their own marketplace
 }
 
-function top_up_funds(employer: address, wages: u64, taxes: u64) -> bool {
-    if !employer_registry.contains(employer) {
-        return false; // Employer not registered
-    }
-
-    let (current_wages, current_taxes, last_payment, is_blacklisted) = employer_registry[employer];
-    if is_blacklisted {
-        return false; // Blacklisted employers cannot top up
-    }
-
-    employer_registry[employer] = (current_wages + wages, current_taxes + taxes, get_block_height(), false);
-    employer_tax_fund[employer] += taxes;
-
-    return true;
+// Struct to track employer agreement with farm management
+struct EmployerAgreement {
+    employer_address: address,
+    subdao_address: address,
+    produce_and_animals_management: FarmManagementOption, // Decision on who manages the produce and animals
+    workers_investment: bool, // Whether the SubDAO has pooled investments into the farm
+    workers_voting_rights: bool, // Whether the SubDAO can vote on the farm management decision
 }
 
-function process_payroll(employer: address, amount: u64) -> bool {
-    if !employer_registry.contains(employer) {
-        return false; // Employer not registered
+// State to store employer agreement data
+state employer_agreements: map<address, EmployerAgreement>;
+
+// Function to create a new employer agreement for farm management
+public fun create_employer_agreement(employer_address: address, subdao_address: address, workers_investment: bool) {
+    // Check if an agreement already exists for this employer
+    if (employer_agreements.contains(employer_address)) {
+        error("Employer agreement already exists.");
     }
 
-    let (current_wages, current_taxes, last_payment, is_blacklisted) = employer_registry[employer];
-    if is_blacklisted || current_wages < amount {
-        return false; // Insufficient funds or blacklisted employer
-    }
+    // Create the new employer agreement with default values
+    let new_agreement = EmployerAgreement {
+        employer_address: employer_address,
+        subdao_address: subdao_address,
+        produce_and_animals_management: FarmManagementOption::FarmManaged, // Default to farm-managed
+        workers_investment: workers_investment,
+        workers_voting_rights: workers_investment, // Workers have voting rights if they've pooled investments
+    };
 
-    employer_registry[employer] = (current_wages - amount, current_taxes, get_block_height(), false);
+    // Store the new employer agreement in the state
+    employer_agreements.insert(employer_address, new_agreement);
+}
+
+// Function to allow SubDAO to vote on whether the farm or the workers should manage produce and animals
+public fun vote_on_management(employer_address: address, subdao_address: address, vote: FarmManagementOption) {
+    let mut agreement = employer_agreements.get(employer_address).unwrap_or(error("Employer not found."));
     
-    return true;
+    // Ensure only workers who have pooled investments are eligible to vote
+    if (!agreement.workers_investment || agreement.subdao_address != subdao_address) {
+        error("Only eligible workers (those who have invested) can vote.");
+    }
+
+    // Update the management decision based on the vote
+    agreement.produce_and_animals_management = vote;
+
+    // Update the agreement state
+    employer_agreements.insert(employer_address, agreement);
 }
 
-function pay_employer_taxes(employer: address) -> bool {
-    if !employer_registry.contains(employer) {
-        return false; // Employer not registered
-    }
-
-    let (current_wages, current_taxes, last_payment, is_blacklisted) = employer_registry[employer];
-    if is_blacklisted || current_taxes == 0 {
-        return false; // No taxes owed or employer is blacklisted
-    }
-
-    employer_registry[employer] = (current_wages, 0, get_block_height(), false);
-    employer_tax_fund[employer] = 0;
-
-    return true;
+// Function to get the current farm management option for an employer
+public fun get_farm_management_option(employer_address: address) -> FarmManagementOption {
+    let agreement = employer_agreements.get(employer_address).unwrap_or(error("Employer not found."));
+    return agreement.produce_and_animals_management;
 }
 
-function blacklist_employer(employer: address) -> bool {
-    if !employer_registry.contains(employer) {
-        return false; // Employer not registered
-    }
-
-    let (current_wages, current_taxes, last_payment, _) = employer_registry[employer];
-    employer_registry[employer] = (current_wages, current_taxes, last_payment, true);
-    blacklisted_employers[employer] = get_block_height();
-
-    return true;
+// Function to check if workers can vote on the management decision (based on investment)
+public fun can_workers_vote_on_management(employer_address: address) -> bool {
+    let agreement = employer_agreements.get(employer_address).unwrap_or(error("Employer not found."));
+    return agreement.workers_voting_rights;
 }
 
-function reinstate_employer(employer: address, fine_amount: u64) -> bool {
-    if !blacklisted_employers.contains(employer) {
-        return false; // Employer is not blacklisted
+// Function to allow SubDAO to pool investment into the farm for produce and animals management
+public fun invest_in_farm(employer_address: address, subdao_address: address) {
+    let mut agreement = employer_agreements.get(employer_address).unwrap_or(error("Employer not found."));
+
+    // Only allow SubDAO investment if it hasn't been made yet
+    if (agreement.workers_investment) {
+        error("SubDAO has already pooled investment into this farm.");
     }
 
-    let (current_wages, current_taxes, last_payment, _) = employer_registry[employer];
-    let total_fine = (current_taxes * 125) / 100; // Unpaid taxes + 25% penalty
-    let subdao_fund_bonus = (current_taxes * 25) / 100; // Additional 25% to SubDAO fund
+    // Set the workers' investment flag to true
+    agreement.workers_investment = true;
+    agreement.workers_voting_rights = true; // Grant voting rights to the workers
 
-    if fine_amount < total_fine {
-        return false; // Insufficient fine payment
+    // Update the agreement state
+    employer_agreements.insert(employer_address, agreement);
+}
+
+// Function to reset farm management option after workers vote to change it
+public fun reset_farm_management(employer_address: address, subdao_address: address, new_option: FarmManagementOption) {
+    let mut agreement = employer_agreements.get(employer_address).unwrap_or(error("Employer not found."));
+
+    // Ensure only workers can reset the management option after voting
+    if (agreement.subdao_address != subdao_address || !agreement.workers_voting_rights) {
+        error("Only workers who have pooled investments can reset the management option.");
     }
 
-    employer_registry[employer] = (current_wages, 0, get_block_height(), false);
-    blacklisted_employers.remove(employer);
+    // Reset the farm management option
+    agreement.produce_and_animals_management = new_option;
 
-    return true;
+    // Update the agreement state
+    employer_agreements.insert(employer_address, agreement);
 }
