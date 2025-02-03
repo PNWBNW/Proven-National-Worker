@@ -1,103 +1,93 @@
-// SPDX-License-Identifier: custom
-// Farm Investment - farm_investment.leo
+// SPDX-License-Identifier: proprietary 
+// Farm Investment contract for PNW Smart Contracts
 
-// Structure representing an individual investment in a farm
-struct FarmInvestment {
-    worker: address,          // Address of the worker who made the investment
-    investment_amount: u64,   // Amount invested by the worker
+// Import necessary dependencies
+import 0xPNW::worker_identity;
+
+// Struct for handling the investments in the farm by each worker
+struct Investment {
+    worker: address,   // Address of the worker who invested
+    amount: u64,       // Amount the worker invested
 }
 
-// Mapping to track investments for each SubDAO
-state farm_investments: map<u32, set<FarmInvestment>>;  // Mapping of SubDAO ID to set of investments
+// State to track investments in a particular farm (per SubDAO)
+state farm_investments: map<u32, vector<Investment>>;  // Map of SubDAO ID to list of investments
+state worker_investment: map<(u32, address), u64>;      // Map of SubDAO ID and worker address to amount invested
 
-// Function to add a worker's investment to the farm pool for a given SubDAO
-function add_investment_to_farm(subdao_id: u32, worker: address, amount: u64) {
-    // Ensure worker is eligible for agricultural investment
+// Function to add investment to a farm for a specific SubDAO
+public fun add_investment_to_farm(subdao_id: u32, worker: address, amount: u64) {
+    // Check if the worker is an eligible agricultural worker
     if !worker_identity.is_agricultural_worker(worker) {
-        error("Worker is not eligible to invest in farm.");
+        error("Worker is not eligible to invest in the farm.");
     }
 
-    // Retrieve current investments for this SubDAO
-    let investments = farm_investments.get(subdao_id).unwrap_or_else(|| set<FarmInvestment>::new());
+    // Track the investment for the worker in the SubDAO
+    let current_investment = worker_investment.get((subdao_id, worker)).unwrap_or(0);
+    let new_investment = current_investment + amount;
+    worker_investment.insert((subdao_id, worker), new_investment);
 
-    // Create a new investment record
-    let new_investment = FarmInvestment {
+    // Add the investment to the farm pool for the SubDAO
+    let investment = Investment {
         worker: worker,
-        investment_amount: amount,
+        amount: amount,
     };
 
-    // Add new investment to the set
-    investments.add(new_investment);
-
-    // Update the farm investments mapping
+    // Insert the investment into the farm investments state
+    let mut investments = farm_investments.get(subdao_id).unwrap_or(vector<Investment>::empty());
+    investments.push(investment);
     farm_investments.insert(subdao_id, investments);
-
-    // Mark the worker as having made an investment
-    worker_identity.mark_investment(worker);
 }
 
-// Function to remove a worker's investment from the farm pool for a given SubDAO
-function remove_investment_from_farm(subdao_id: u32, worker: address, amount: u64) {
-    // Retrieve current investments for this SubDAO
-    let investments = farm_investments.get(subdao_id).unwrap_or_else(|| set<FarmInvestment>::new());
-
-    // Find the investment for this worker
-    let investment = investments.iter().find(|&inv| inv.worker == worker);
-
-    match investment {
-        Some(inv) => {
-            // Ensure the amount to be removed is valid
-            if inv.investment_amount < amount {
-                error("Amount to remove exceeds investment.");
-            }
-
-            // Update the investment amount for this worker
-            let updated_investment = FarmInvestment {
-                worker: inv.worker,
-                investment_amount: inv.investment_amount - amount,
-            };
-
-            // Remove the old investment and add the updated one
-            investments.remove(inv);
-            investments.add(updated_investment);
-
-            // Update the mapping with the new set of investments
-            farm_investments.insert(subdao_id, investments);
-
-            // If the investment amount becomes zero, remove the investment entirely
-            if updated_investment.investment_amount == 0 {
-                worker_identity.remove_investment(worker);
-            }
-        },
-        None => error("No investment found for this worker."),
+// Function to remove investment from a farm for a specific SubDAO
+public fun remove_investment_from_farm(subdao_id: u32, worker: address, amount: u64) {
+    // Ensure the worker has made an investment
+    let current_investment = worker_investment.get((subdao_id, worker)).unwrap_or(0);
+    if current_investment < amount {
+        error("Worker has insufficient investment to withdraw.");
     }
+
+    // Update the worker's investment
+    let new_investment = current_investment - amount;
+    worker_investment.insert((subdao_id, worker), new_investment);
+
+    // Remove the investment from the farm pool
+    let mut investments = farm_investments.get(subdao_id).unwrap_or(vector<Investment>::empty());
+    investments = investments.filter(|inv| inv.worker != worker || inv.amount != amount);  // Remove the specific investment
+
+    farm_investments.insert(subdao_id, investments);
 }
 
-// Function to get the total investment from all workers in a given SubDAO
-function get_total_investment(subdao_id: u32) -> u64 {
-    // Retrieve the investments for the SubDAO
-    let investments = farm_investments.get(subdao_id).unwrap_or_else(|| set<FarmInvestment>::new());
+// Function to check if a worker has invested in a specific farm (SubDAO)
+public fun has_investment_in_farm(subdao_id: u32, worker: address) -> bool {
+    let current_investment = worker_investment.get((subdao_id, worker)).unwrap_or(0);
+    return current_investment > 0;
+}
 
-    // Calculate the total investment by summing all investment amounts
-    let total_investment = investments.fold(0, |accum, investment| accum + investment.investment_amount);
-
+// Function to get the total investment in a farm for a given SubDAO
+public fun get_total_investment(subdao_id: u32) -> u64 {
+    let investments = farm_investments.get(subdao_id).unwrap_or(vector<Investment>::empty());
+    let total_investment = investments.fold(0, |acc, inv| acc + inv.amount);
     return total_investment;
 }
 
-// Function to check if a worker has an active farm investment
-function has_investment_in_farm(subdao_id: u32, worker: address) -> bool {
-    // Retrieve the investments for the SubDAO
-    let investments = farm_investments.get(subdao_id).unwrap_or_else(|| set<FarmInvestment>::new());
-
-    // Check if the worker has any investment in the farm pool
-    return investments.iter().any(|investment| investment.worker == worker);
+// Function to get the investment history for a worker in a specific SubDAO
+public fun get_investment_history(subdao_id: u32, worker: address) -> u64 {
+    return worker_investment.get((subdao_id, worker)).unwrap_or(0);
 }
 
-// Function to get the list of workers who have invested in a particular SubDAO
-function get_investment_list(subdao_id: u32) -> set<address> {
-    // Retrieve the investments for the SubDAO
-    let investments = farm_investments.get(subdao_id).unwrap_or_else(|| set<FarmInvestment>::new());
+// Function to get all investments in a specific farm (SubDAO)
+public fun get_all_investments(subdao_id: u32) -> vector<Investment> {
+    return farm_investments.get(subdao_id).unwrap_or(vector<Investment>::empty());
+}
 
-    // Return the list of worker addresses who have made investments
-    return investments.iter().map(|investment| investment.worker).collect();
+// Function to remove all investments for a specific SubDAO (in case of farm liquidation or other reasons)
+public fun remove_all_investments(subdao_id: u32) {
+    farm_investments.remove(subdao_id);
+}
+
+// Utility function to get all workers who have invested in a specific farm
+public fun get_investors(subdao_id: u32) -> vector<address> {
+    let investments = farm_investments.get(subdao_id).unwrap_or(vector<Investment>::empty());
+    let investors = investments.fold(vector<address>::empty(), |acc, inv| acc.push(inv.worker));
+    return investors;
 }
