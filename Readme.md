@@ -1,83 +1,99 @@
-# PNW Smart Contract System
+# Proven National Worker (PNW) System  
 
-## Overview
-The **Proven Non-Citizen Workers (PNW) Smart Contract System** is a decentralized, privacy-preserving payroll and governance framework built on **Aleo**, with **EVM** and **Stellar** network integrations for cross-chain payroll processing. It enables **migrant workers** to receive wages securely, ensures **employer compliance with tax laws**, and leverages **zero-knowledge proofs (ZKPs)** to verify work and payment history without exposing sensitive data.
-
-This system is designed to be **tamper-resistant, auditable, and fair**, preventing **exploitative employment practices** while empowering workers with **on-chain governance mechanisms** via **SubDAOs**.
+## Overview  
+The **Proven National Worker (PNW) System** is a decentralized, blockchain-based framework designed to facilitate fair, transparent, and compliant employment for both **Proven National Citizen Workers (PNcW)** and **Proven National Immigrant Workers (PNiW)**. It leverages smart contracts, SubDAO governance, and privacy-preserving zero-knowledge proofs to ensure worker protections, payroll security, and investment accountability.
 
 ---
 
-## Key Features
+## Core Features  
 
-### 1️⃣ Worker Identity & Verification
-- **Self-sovereign identity**: Workers are issued **non-transferable NFTs** to verify work history.
-- **ZPass Integration (Optional)**: Workers can verify identity using ZPass for **enhanced benefits** (higher trust fund APY, priority payroll processing).
+### **1. Worker Identity & Verification**  
+- Workers are issued **PNcW** or **PNiW** NFTs upon verification.  
+- Identity verification can be enhanced with **ZPass integration** (optional).  
+- Each worker has an **industry-specific verification field**.  
 
-### 2️⃣ Payroll Processing
-- **Batch payroll execution** to lower gas fees.
-- **Workers choose between Aleo USDC or Bridged USDC** (EVM chains).
-- **Automated tax deductions & compliance tracking** before payroll disbursement.
-- **Employers must pre-fund payroll & taxes** to continue hiring.
+### **2. Payroll & Compliance**  
+- Supports payroll in **native Aleo USDC** and **bridged USDC** (switchable).  
+- Payroll gas fees:  
+  - **Aleo ecosystem** → Covered by SubDAOs.  
+  - **Sidechain payrolls** → Covered by workers.  
+- **Employer tax fund:** Tracks required tax payments separately.  
+- **Automated tax compliance:** Ensures employer tax obligations are met.  
+- **Blacklist system:** Employers with 3+ missed tax payments require SubDAO voting for reinstatement.  
 
-### 3️⃣ Employer Compliance & Tax Automation
-- **Employer Tax Fund**: Tracks tax payments **separately** from payroll.
-- **Automated Tax Payments**: SubDAOs remit taxes to state/country agencies upon payroll execution.
-- **Tax Discounts for Early Compliance**: Starting at **1% (votable by SubDAO to increase)**.
-- **Compliance Verification System**: Tracks employer tax payments and flags missed payments.
-- **Blacklist for Chronic Offenders**: Employers missing **3+ tax payments** require SubDAO voting for reinstatement.
-- **Reinstatement Fine**: **Unpaid fees + 25%**, with **an additional 25% to the SubDAO fund**.
+### **3. SubDAO Governance**  
+- Each worker belongs to a **SubDAO** with **100,000 workers per 50 SubDAOs**.  
+- **Voting rights:** Workers can vote on SubDAO fund usage.  
+- **Employer penalties:** SubDAOs decide on employer infractions & penalties.  
 
-### 4️⃣ SubDAO Governance
-- **SubDAO Creation**: Automatic when worker limits (**100,000 workers across 50 SubDAOs**) are reached.
-- **Employer Penalties Voted by SubDAOs** instead of relying solely on government action.
-- **Worker-Driven Fund Allocation**: SubDAOs vote on how to use worker-generated funds.
+### **4. Farm Investments & Co-Ops**  
+- Farm investments are open to both **PNcW and PNiW**, but payroll and trust pools remain separate.  
+- **Farm payouts:** Occur **only on the 1st of each month**.  
+- **Merkle validation:** Ensures investment legitimacy using local farm data centers.  
+- **SubDAO vote:** Required if network issues or high gas fees arise.  
 
-### 5️⃣ Cross-Chain Payroll & Interoperability
-- **Aleo → EVM Bridge**: Supports **EVM chains**
-- **Bridging Fees Paid by Workers** (Rollups enabled for cost reduction).
-- **Rollup Batch Processing Every 30 Minutes** for cheaper transactions.
-- **Aleo ↔ Stellar Interoperability**: Zero-knowledge proofs (ZKPs) verify Aleo payroll before Stellar executes payments.
-- **Stellar as an Optional Payroll Network** for stablecoin-based payments.
-
----
-
-## Contracts & Components
-
-### **Aleo Contracts**
-- `main.leo` – Core contract for PNW system.
-- `payroll.leo` – Handles wage distribution.
-- `worker_identity.leo` – Manages worker verification.
-- `compliance_tracking.leo` – Employer tax tracking.
-- `government_api.leo` – Integration for labor agencies.
-- `subdao_management.leo` – Handles SubDAO creation & governance.
-- `employer_agreement.leo` – Employer compliance enforcement.
-
-### **Solidity (EVM) Contracts**
-- `PNWbridgepayroll.sol` – Bridges payroll from Aleo to EVM.
-- `IERC20.sol` – Standard ERC-20 interface.
-- `IAleoVerifier.sol` – Validates Aleo ZKPs on EVM.
-- `Igovtaxapi.sol` – Government tax API integration.
-
-### **Stellar Soroban Contracts**
-- `stellar_verifier.rs` – Verifies ZK payroll proofs.
-- `stellar_integration.rs` – Processes Stellar payroll transactions.
-
-### **Deployment & Integration**
-- `deploy_main.leo` – Deploys Aleo contracts.
-- `deploy_subdao.leo` – Initializes new SubDAOs.
-- `deployment_script.sh` – Deploys Stellar Soroban contract.
-- `network.json` – Stores blockchain network configurations.
+### **5. Bridge & Interoperability**  
+- **EVM-based bridge:** Supports payroll bridging to Ethereum-compatible chains.  
+- **Aleo ↔ Stellar integration:** Uses **ZK verification** for secure, on-chain Stellar payroll interoperability.  
+- **Rollups for cost efficiency:** Workers can choose between direct settlement (faster) or rollups (cheaper).  
 
 ---
 
-## Getting Started
+## Smart Contract Structure  
 
-### **Requirements**
-- **Aleo** development environment.
-- **Solidity 0.8.20** for EVM compatibility.
-- **Rust & Soroban SDK** for Stellar integration.
+### **1. Worker Identity & Governance**  
+- `worker_identity.leo` – Handles worker verification, NFT issuance, and governance integration.  
+- `subdao_governance.leo` – Manages SubDAO voting, employer penalties, and worker fund decisions.  
 
-### **Deployment**
-1. Deploy **Aleo contracts** using:
-   ```sh
-   leo run deploy_main
+### **2. Payroll & Tax Compliance**  
+- `payroll_processor.leo` – Executes payroll, tracks taxes, and enforces compliance.  
+- `employer_agreement.leo` – Defines employer obligations, tax payments, and penalties.  
+
+### **3. Farm Investments & Payouts**  
+- `farm_investments.leo` – Manages farm investment registration and payouts.  
+- `merkle_decision_maker.leo` – Verifies farm investments using local merkle trees.  
+
+### **4. Bridging & Interoperability**  
+- `pnw_bridgepayroll.sol` – EVM contract handling cross-chain payroll transactions.  
+- `zk_verifier.leo` – Enables **Aleo ↔ Stellar payroll verification** using zero-knowledge proofs.  
+
+---
+
+## Deployment & Testing  
+
+### **Deployment Process**  
+- **Smart Contracts:** Deployed in a unified manner to ensure system integrity.  
+- **Worker Identity & Payroll:** Must be initialized before employer registrations.  
+- **Farm Investments:** Deployed after worker identity contracts for seamless integration.  
+
+### **Testing Strategy**  
+- **run_tests.sh:** Automates testing of all smart contracts.  
+- **Python test scripts:** Validate payroll, tax compliance, and SubDAO voting behavior.  
+- **Gas fee simulation:** Ensures transactions remain cost-effective.  
+
+---
+
+## Future Roadmap  
+
+✅ **Phase 1:** Aleo-based Payroll & Compliance  
+✅ **Phase 2:** Farm Investments & SubDAO Governance  
+✅ **Phase 3:** EVM Payroll Bridge & ZK Interoperability  
+🔲 **Phase 4:** Multi-Nation Implementation & Custom Regulations  
+
+---
+
+## Conclusion  
+The **PNW System** is a fully on-chain, **worker-first** employment framework designed for **fair wages, transparent governance, and decentralized compliance**. By leveraging **SubDAO voting, zero-knowledge proofs, and blockchain automation**, PNW ensures a **secure, efficient, and scalable** employment solution for both citizens and immigrants worldwide.  
+
+---
+
+## Contributors  
+- **Core Developer:** Joshua Daniel Day  
+- **Advisors:** Aleo Team  
+
+---
+
+## License  
+This project is released under a **proprietary license** and **not open-source**.  
+
+For inquiries about partnerships or contributions, please contact **[Your Contact Info]**.
