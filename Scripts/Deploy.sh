@@ -15,7 +15,7 @@ rm -f $LOG_FILE
 
 # Function to check for required dependencies
 check_dependency() {
-    command -v $1 >/dev/null 2>&1 || { echo >&2 "❌ Error: $1 is required but not installed."; exit 1; }
+    command -v $1 >/dev/null 2>&1 || { echo >&2 "exit 1; }
 }
 
 # Check for dependencies
