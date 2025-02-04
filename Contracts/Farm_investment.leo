@@ -1,70 +1,126 @@
-import DateTime;
-import MerkleHelper;
-import NetworkStatus;
-import AleoNetwork;
+// farm_investments.leo
 
-contract FarmInvestment {
+// Import required libraries
+import "std/contract.leo";
 
-    state payout_last_processed: DateTime;
-    state total_investment: field;  // Total funds to be paid out
-    state farm_id: u64;
+// Contract definition for farm investments
+contract FarmInvestments {
 
-    // Function to process farm investment payouts
-    public fun processFarmInvestmentPayout(proof: vector<field>, leaf: field) -> string {
-        // Check if it's the 1st of the month
-        if (!self.isPayoutDay()) {
-            return "Payouts are only allowed on the 1st of each month";
-        }
-
-        // Check network health before proceeding
-        if (!self.isNetworkHealthy()) {
-            return "Network congestion detected: SubDAO vote required";
-        }
-
-        // Ensure the payout is executed on the Aleo chain
-        if (!self.isAleoNetwork()) {
-            return "Payouts can only be processed on the Aleo chain";
-        }
-
-        // Verify the Merkle proof before proceeding with the payout logic
-        let contract_decision = MerkleHelper::verifyMerkleProof(MerkleHelper::getMerkleRoot(), leaf, proof);
-        if (contract_decision != "farm_investment") {
-            return "Invalid contract decision";
-        }
-
-        // Proceed with the payout process if conditions are met
-        self.executePayout();
-        return "Farm investment payout processed successfully";
+    // Define the struct to store farm investment data
+    struct FarmInvestment {
+        address farmOwner;
+        uint64 investmentAmount;
+        bool payoutApproved;
+        bool investmentComplete;
+        uint64 payoutDate;
+        string farmType; // E.g., "Organic", "Sustainable", etc.
     }
 
-    // Function to execute payout
-    private fun executePayout() {
-        let payout_amount = self.total_investment;
+    // State variables
+    public farmInvestmentsData: map<address, FarmInvestment>;
+    public payoutQueue: vector<address>;
+    public payoutStatus: map<address, bool>;
 
-        // Logic for executing the payout goes here
-        // Transfer funds, update states, etc.
-        self.total_investment = 0;  // Reset after payout
-        self.payout_last_processed = DateTime::getCurrentDate();
+    // Events
+    event InvestmentMade(farmOwner: address, amount: uint64);
+    event PayoutApproved(farmOwner: address, payoutAmount: uint64);
+    event PayoutDenied(farmOwner: address);
+    event PayoutDelayed(farmOwner: address);
+
+    // Function for making a farm investment
+    public fun makeInvestment(farmOwner: address, amount: uint64, farmType: string) {
+        // Ensure the investment is positive
+        assert!(amount > 0, "Investment amount must be greater than zero");
+
+        // Store the investment data
+        self.farmInvestmentsData[farmOwner] = FarmInvestment {
+            farmOwner: farmOwner,
+            investmentAmount: amount,
+            payoutApproved: false,
+            investmentComplete: false,
+            payoutDate: 0,  // Placeholder until payout date is set
+            farmType: farmType
+        };
+
+        // Emit event for making an investment
+        self.emit(InvestmentMade(farmOwner, amount));
     }
 
-    // Function to check if today is the 1st of the month
-    private fun isPayoutDay() -> bool {
-        let today = DateTime::getCurrentDate();
-        return today.day == 1;
+    // Function for SubDAO to approve payout to a farm
+    public fun approvePayout(farmOwner: address, payoutAmount: uint64, currentDate: uint64) {
+        // Ensure the farm investment exists
+        assert!(self.farmInvestmentsData.contains(farmOwner), "Farm investment not found");
+
+        // Check if the payout is approved already
+        assert!(!self.farmInvestmentsData[farmOwner].payoutApproved, "Payout already approved");
+
+        // Update the payout approval status
+        self.farmInvestmentsData[farmOwner].payoutApproved = true;
+        self.farmInvestmentsData[farmOwner].payoutDate = currentDate;
+
+        // Add to the payout queue
+        self.payoutQueue.push(farmOwner);
+
+        // Emit the event
+        self.emit(PayoutApproved(farmOwner, payoutAmount));
     }
 
-    // Function to check network health before executing payouts
-    private fun isNetworkHealthy() -> bool {
-        let gas_fee = NetworkStatus::getGasFee();
-        let latency = NetworkStatus::getLatency();
+    // Function for SubDAO to deny payout to a farm
+    public fun denyPayout(farmOwner: address) {
+        // Ensure the farm investment exists
+        assert!(self.farmInvestmentsData.contains(farmOwner), "Farm investment not found");
 
-        // Set a threshold for gas fees and latency
-        return !(gas_fee > 2 * NetworkStatus::get30DayAvgGasFee() || latency > NetworkStatus::getHighLatencyThreshold());
+        // Deny payout
+        self.farmInvestmentsData[farmOwner].payoutApproved = false;
+
+        // Emit the event
+        self.emit(PayoutDenied(farmOwner));
     }
 
-    // Function to check if the network is Aleo
-    private fun isAleoNetwork() -> bool {
-        // Assuming we have an Aleo-specific network check function
-        return AleoNetwork::isCurrentChain("Aleo");
+    // Function for SubDAO to delay payout
+    public fun delayPayout(farmOwner: address) {
+        // Ensure the farm investment exists
+        assert!(self.farmInvestmentsData.contains(farmOwner), "Farm investment not found");
+
+        // Delay payout
+        self.emit(PayoutDelayed(farmOwner));
+    }
+
+    // Function to process the payout if the payout date has arrived
+    public fun processPayout(farmOwner: address, currentDate: uint64) {
+        // Ensure the farm investment exists
+        assert!(self.farmInvestmentsData.contains(farmOwner), "Farm investment not found");
+
+        // Check if payout is approved and the date has arrived
+        if (self.farmInvestmentsData[farmOwner].payoutApproved && currentDate >= self.farmInvestmentsData[farmOwner].payoutDate) {
+            // Process the payout (for example, transfer funds here)
+            // Placeholder logic for payout processing
+            self.farmInvestmentsData[farmOwner].investmentComplete = true;
+
+            // Emit event
+            self.emit(PayoutApproved(farmOwner, self.farmInvestmentsData[farmOwner].investmentAmount));
+        }
+    }
+
+    // Function to check the status of a farm investment
+    public fun checkInvestmentStatus(farmOwner: address): FarmInvestment {
+        assert!(self.farmInvestmentsData.contains(farmOwner), "Farm investment not found");
+
+        // Return farm investment data
+        return self.farmInvestmentsData[farmOwner];
+    }
+
+    // Function to get the current payout queue
+    public fun getPayoutQueue(): vector<address> {
+        return self.payoutQueue;
+    }
+
+    // Function to check if a payout is ready for a specific farm
+    public fun isPayoutReady(farmOwner: address, currentDate: uint64): bool {
+        // Ensure the farm investment exists
+        assert!(self.farmInvestmentsData.contains(farmOwner), "Farm investment not found");
+
+        // Check if payout is approved and the date has arrived
+        return self.farmInvestmentsData[farmOwner].payoutApproved && currentDate >= self.farmInvestmentsData[farmOwner].payoutDate;
     }
 }
