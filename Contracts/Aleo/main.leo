@@ -1,121 +1,125 @@
-// SPDX-License-Identifier: proprietary 
-// Main contract for PNW SubDAOs with Farm Investment logic
+// main.leo
 
-// Include required imports
-import 0xPNW::worker_identity;
-import 0xPNW::farm_investment;
+import 0x01::worker_identity;
+import 0x01::subdao_citizen_payroll;
+import 0x01::merkle_helper;  // For Merkle-based validation
 
-// SubDAO structure to hold basic information about each SubDAO
-struct SubDAO {
-    id: u32,                  // Unique ID for the SubDAO
-    name: string,             // Name of the SubDAO
-    total_investment: u64,    // Total investment in the farm by workers of this SubDAO
-    farm_control: bool,       // Whether the SubDAO manages its own produce and marketplace
-    investment_pool: set<address>,  // Set of workers who have invested in the farm
+// Structures to represent the updated worker systems
+
+// Worker structure for Proven National Workers (PNcW and PNiW)
+struct Worker has store {
+    worker_id: u64,  // Unique worker ID
+    nationality: string,  // Nationality (for determining citizenship status)
+    role: string,  // Worker role in the system
+    verified: bool,  // Worker verification status
+    nft_type: string,  // Either "PNcW" or "PNiW" based on citizenship
+    farm_investment: u64,  // Farm investment amount
 }
 
-// State to track SubDAOs
-state subdaos: map<u32, SubDAO>;  // Map of SubDAO ID to SubDAO details
-state next_subdao_id: u32 = 1;    // Automatically incrementing ID for new SubDAOs
+// Structure for SubDAO (Citizenship-based SubDAOs)
+struct SubDAO has store {
+    subdao_id: u64,  // SubDAO unique ID
+    name: string,  // SubDAO name
+    members: vector<u64>,  // Member list, worker IDs
+    payroll: u64,  // Payroll amount to be distributed
+    farm_investment_payout: u64,  // Farm investment payout
+    verified_workers: vector<u64>,  // Workers who have completed verification
+}
+
+// Function to create a new worker
+public fun create_worker(worker_id: u64, nationality: string, role: string, nft_type: string): Worker {
+    let worker = Worker {
+        worker_id: worker_id,
+        nationality: nationality,
+        role: role,
+        verified: false,
+        nft_type: nft_type,
+        farm_investment: 0,
+    };
+    move_to(worker, worker_id);
+    return worker;
+}
+
+// Function to update worker verification status
+public fun update_worker_verification(worker_id: u64, verified: bool) {
+    let worker = borrow_global_mut<Worker>(worker_id);
+    worker.verified = verified;
+}
 
 // Function to create a new SubDAO
-public function create_subdao(name: string) -> u32 {
-    let id = next_subdao_id;
-    next_subdao_id += 1;
-
-    let new_subdao = SubDAO {
-        id: id,
+public fun create_subdao(subdao_id: u64, name: string, members: vector<u64>): SubDAO {
+    let subdao = SubDAO {
+        subdao_id: subdao_id,
         name: name,
-        total_investment: 0,
-        farm_control: true,  // Default farm control to the SubDAO (initially)
-        investment_pool: set<address>::new(),
+        members: members,
+        payroll: 0,
+        farm_investment_payout: 0,
+        verified_workers: vector::empty<u64>(),
     };
-
-    subdaos.insert(id, new_subdao);
-    return id;
+    move_to(subdao, subdao_id);
+    return subdao;
 }
 
-// Function for workers to invest in a farm within a SubDAO
-public function invest_in_farm(subdao_id: u32, amount: u64) {
-    let worker = msg.sender;  // Get the worker's address from the transaction sender
-    
-    // Ensure that the worker is eligible for agricultural investment
-    if !worker_identity.is_agricultural_worker(worker) {
-        error("Worker is not eligible to invest in farm.");
+// Function to add worker to SubDAO
+public fun add_worker_to_subdao(subdao_id: u64, worker_id: u64) {
+    let subdao = borrow_global_mut<SubDAO>(subdao_id);
+    vector::push_back(&mut subdao.members, worker_id);
+}
+
+// Function to set SubDAO payroll amount
+public fun set_subdao_payroll(subdao_id: u64, payroll_amount: u64) {
+    let subdao = borrow_global_mut<SubDAO>(subdao_id);
+    subdao.payroll = payroll_amount;
+}
+
+// Function to approve worker as verified in SubDAO
+public fun approve_worker_in_subdao(subdao_id: u64, worker_id: u64) {
+    let subdao = borrow_global_mut<SubDAO>(subdao_id);
+    if (worker_identity::is_verified(worker_id)) {
+        vector::push_back(&mut subdao.verified_workers, worker_id);
     }
-
-    // Add investment to the farm pool for the given SubDAO
-    farm_investment.add_investment_to_farm(subdao_id, worker, amount);
-
-    // Update the total investment for the SubDAO
-    let subdao = subdaos.get(subdao_id).unwrap();
-    let updated_subdao = SubDAO {
-        id: subdao.id,
-        name: subdao.name,
-        total_investment: subdao.total_investment + amount,
-        farm_control: subdao.farm_control,
-        investment_pool: subdao.investment_pool.add(worker),
-    };
-
-    subdaos.insert(subdao_id, updated_subdao);
 }
 
-// Function to remove investment from farm pool
-public function withdraw_investment_from_farm(subdao_id: u32, amount: u64) {
-    let worker = msg.sender;  // Get the worker's address
-
-    // Ensure that the worker has made an investment
-    if !farm_investment.has_investment_in_farm(subdao_id, worker) {
-        error("Worker has no investment to withdraw.");
+// Function to process the farm investment payout for SubDAO
+public fun process_farm_investment_payout(subdao_id: u64) {
+    let subdao = borrow_global_mut<SubDAO>(subdao_id);
+    let payout_amount = subdao.farm_investment_payout / vector::length(&subdao.verified_workers);
+    // Distribute payout to verified workers
+    for (worker_id in subdao.verified_workers) {
+        worker_identity::send_payment(worker_id, payout_amount);  // Assuming send_payment exists
     }
-
-    // Remove the investment from the farm pool
-    farm_investment.remove_investment_from_farm(subdao_id, worker, amount);
-
-    // Update the total investment for the SubDAO
-    let subdao = subdaos.get(subdao_id).unwrap();
-    let updated_subdao = SubDAO {
-        id: subdao.id,
-        name: subdao.name,
-        total_investment: subdao.total_investment - amount,
-        farm_control: subdao.farm_control,
-        investment_pool: subdao.investment_pool.remove(worker),
-    };
-
-    subdaos.insert(subdao_id, updated_subdao);
 }
 
-// Function for workers to vote on the farm control option (SubDAO or external farm management)
-public function vote_on_farm_control(subdao_id: u32, control_choice: bool) {
-    let worker = msg.sender;  // Get the worker's address
-
-    // Ensure the worker has invested in the farm before voting
-    if !farm_investment.has_investment_in_farm(subdao_id, worker) {
-        error("Worker must have invested in the farm to vote.");
+// Function to execute payroll distribution for SubDAO
+public fun execute_subdao_payroll(subdao_id: u64) {
+    let subdao = borrow_global_mut<SubDAO>(subdao_id);
+    let payout_per_worker = subdao.payroll / vector::length(&subdao.members);
+    let mut total_paid = 0;
+    // Iterate through the workers and distribute payments
+    for (worker_id in subdao.members) {
+        total_paid = total_paid + payout_per_worker;
+        worker_identity::send_payment(worker_id, payout_per_worker);  // Assuming send_payment exists
     }
-
-    // Update the SubDAO's control choice (either manage internally or let farm manage)
-    let subdao = subdaos.get(subdao_id).unwrap();
-    let updated_subdao = SubDAO {
-        id: subdao.id,
-        name: subdao.name,
-        total_investment: subdao.total_investment,
-        farm_control: control_choice,
-        investment_pool: subdao.investment_pool,
-    };
-
-    subdaos.insert(subdao_id, updated_subdao);
+    subdao.payroll = 0;  // Reset payroll after execution
 }
 
-// Function to view the total investment in a SubDAO's farm
-public function get_total_investment(subdao_id: u32) -> u64 {
-    let subdao = subdaos.get(subdao_id).unwrap();
-    return subdao.total_investment;
+// Function to get SubDAO details (for audit or display)
+public fun get_subdao_details(subdao_id: u64): SubDAO {
+    borrow_global<SubDAO>(subdao_id)
 }
 
-// Function to check if a worker has voted on the farm control
-public function has_voted_for_farm_control(subdao_id: u32, worker: address) -> bool {
-    // We assume each worker votes once, and the vote is recorded with the SubDAO's farm control setting
-    let subdao = subdaos.get(subdao_id).unwrap();
-    return subdao.investment_pool.contains(worker);
+// Function to get worker details
+public fun get_worker_details(worker_id: u64): Worker {
+    borrow_global<Worker>(worker_id)
+}
+
+// Function to initialize a Merkle validation (for verifying farm investment and payroll data)
+public fun initialize_merkle_verification(subdao_id: u64): bool {
+    let subdao = borrow_global<SubDAO>(subdao_id);
+    let workers_data = vector::map(
+        &subdao.members,
+        fun(worker_id) => worker_identity::get_worker_data(worker_id),
+    );
+    // Assuming Merkle helper has a function to validate Merkle tree for batch data
+    merkle_helper::validate_merkle_tree(workers_data)
 }
