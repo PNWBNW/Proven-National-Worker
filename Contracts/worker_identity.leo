@@ -1,58 +1,72 @@
-import DateTime;
-import MerkleHelper;
-import NetworkStatus;
+// worker_identity.leo
+import 0x01::Merkle;  // Import Merkle module for Merkle tree operations
 
-contract WorkerIdentity {
+// Worker structure to store key information
+struct Worker {
+    id: u64,                   // Unique worker ID
+    name: string,              // Name of the worker
+    nationality: string,       // Worker nationality (e.g., "US", "DE", "CA")
+    status: string,            // Worker status (e.g., "Citizen", "Immigrant")
+    nft_type: string,          // NFT type: "PNcW" for Citizen, "PNiW" for Immigrant
+    verification_hash: vector<u8>, // Hash of verification data for Merkle tree integration
+}
 
-    state worker_id: u64;  
-    state total_wages: field;  
-    state payout_last_processed: DateTime;  
+// Merkle Tree root for verifying worker data integrity
+struct MerkleRoot {
+    root_hash: vector<u8>,  // Merkle root hash to verify against
+}
 
-    // Function to process worker identity payouts
-    public fun processWorkerIdentityPayout(proof: vector<field>, leaf: field) -> string {
-        // Check if it's the 1st of the month
-        if (!self.isPayoutDay()) {
-            return "Payouts are only allowed on the 1st of each month";
-        }
-
-        // Check network health before proceeding
-        if (!self.isNetworkHealthy()) {
-            return "Network congestion detected: SubDAO vote required";
-        }
-
-        // Verify the Merkle proof before proceeding with the payout logic
-        let contract_decision = MerkleHelper::verifyMerkleProof(MerkleHelper::getMerkleRoot(), leaf, proof);
-        if (contract_decision != "worker_identity") {
-            return "Invalid contract decision";
-        }
-
-        // Proceed with the payout process if conditions are met
-        self.executePayout();
-        return "Worker identity payout processed successfully";
+// Define the Worker Identity Contract
+public fun register_worker(
+    worker_id: u64,
+    worker_name: string,
+    nationality: string,
+    status: string,
+    merkle_root: vector<u8>,
+): Worker {
+    let worker_nft_type = if (status == "Citizen") { 
+        format!("{}-PNcW", nationality) 
+    } else { 
+        format!("{}-PNiW", nationality) 
+    };
+    
+    let verification_hash = Merkle::compute_merkle_hash(merkle_root);
+    
+    // Register the worker
+    Worker {
+        id: worker_id,
+        name: worker_name,
+        nationality: nationality,
+        status: status,
+        nft_type: worker_nft_type,
+        verification_hash: verification_hash,
     }
+}
 
-    // Function to execute payout
-    private fun executePayout() {
-        let payout_amount = self.total_wages;
+// Function to verify worker's Merkle root
+public fun verify_worker(
+    worker_id: u64,
+    worker_nft_type: string,
+    provided_root: vector<u8>,
+): bool {
+    // Check if the worker's provided Merkle root matches the registered root
+    let registered_worker = get_worker(worker_id);
+    let is_verified = Merkle::verify_merkle_root(provided_root, registered_worker.verification_hash);
 
-        // Logic for executing the payout goes here
-        // Transfer funds, update states, etc.
-        self.total_wages = 0;  // Reset after payout
-        self.payout_last_processed = DateTime::getCurrentDate();
-    }
+    // Ensure the worker’s NFT type corresponds to their verification status
+    return is_verified && registered_worker.nft_type == worker_nft_type;
+}
 
-    // Function to check if today is the 1st of the month
-    private fun isPayoutDay() -> bool {
-        let today = DateTime::getCurrentDate();
-        return today.day == 1;
-    }
-
-    // Function to check network health before executing payouts
-    private fun isNetworkHealthy() -> bool {
-        let gas_fee = NetworkStatus::getGasFee();
-        let latency = NetworkStatus::getLatency();
-
-        // Set a threshold for gas fees and latency
-        return !(gas_fee > 2 * NetworkStatus::get30DayAvgGasFee() || latency > NetworkStatus::getHighLatencyThreshold());
+// Helper function to retrieve a worker based on ID (using a simulated storage mechanism)
+public fun get_worker(worker_id: u64): Worker {
+    // This would interact with a storage system, like a global mapping of workers
+    // For now, it returns a dummy worker to simulate the functionality
+    Worker {
+        id: worker_id,
+        name: "Alice Doe",
+        nationality: "US",
+        status: "Citizen",
+        nft_type: "US-PNcW",
+        verification_hash: vec![],  // Dummy hash for example
     }
 }
