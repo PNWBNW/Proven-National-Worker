@@ -1,0 +1,40 @@
+// Worker Identity NFT Logic
+
+// Define the WorkerType enumeration for Citizen and Immigrant categories
+enum WorkerType {
+    PNcW,  // Proven National Citizen Worker
+    PNiW,  // Proven National Immigrant Worker
+}
+
+// Define the WorkerNFT struct that holds details about the worker's NFT
+struct WorkerNFT {
+    id: u64,                  // Unique ID for the worker's NFT
+    worker_type: WorkerType,  // Type of worker (PNcW or PNiW)
+    verified: bool,           // Verification status (True if verified)
+    verification_date: u64,   // The date when the worker was verified
+}
+
+// Function to mint a worker's NFT based on their citizenship status
+public function mintWorkerNFT(worker_citizenship: bool, worker_id: u64, verification_date: u64) -> WorkerNFT {
+    // Determine the worker's type based on their citizenship status
+    let worker_type = if worker_citizenship {
+        WorkerType::PNcW  // If worker is a citizen, assign as PNcW
+    } else {
+        WorkerType::PNiW  // If worker is an immigrant, assign as PNiW
+    };
+
+    // Create the worker NFT with the determined worker type
+    let worker_nft = WorkerNFT {
+        id: worker_id,
+        worker_type: worker_type,
+        verified: true,               // Mark as verified
+        verification_date: verification_date,  // Store the verification date
+    };
+
+    // Logic to mint and store NFT (this could be an on-chain storage mechanism)
+    // Example: mint_nft(worker_nft);
+
+    return worker_nft;  // Return the created NFT
+}
+
+// Optionally, you could add more functions such as verification status check, etc.
