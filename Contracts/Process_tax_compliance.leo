@@ -53,3 +53,4 @@ public fun check_compliance(employer_id: u64) -> bool {
     let employer_record = employer_tax[employer_id];
     return employer_record.is_compliant;
 }
+
