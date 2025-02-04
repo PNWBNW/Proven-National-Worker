@@ -35,3 +35,20 @@ function test_farm_investment_blacklist() -> bool {
     assert(blacklist_status == false, "Investor should not be blacklisted");
     return blacklist_status;
 }
+
+function test_monthly_payout_enforcement() -> bool {
+    let investor_address = aleo1investorexample123;
+    let last_payout_timestamp = farm_investment::get_last_payout_timestamp(investor_address);
+    let current_timestamp = get_current_timestamp();
+
+    assert!(current_timestamp >= last_payout_timestamp + 2_592_000, "Payout can only be processed once per month");
+
+    let payout_status = farm_investment::process_payout(investor_address);
+    assert(payout_status == true, "Monthly payout processing failed");
+
+    return payout_status;
+}
+
+function get_current_timestamp() -> u64 {
+    return get_block_timestamp();
+}
