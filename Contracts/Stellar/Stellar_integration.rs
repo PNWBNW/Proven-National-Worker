@@ -1,33 +1,91 @@
 #![no_std]
 
-use soroban_sdk::{contract, contractimpl, Address, Env, BytesN};
+use soroban_sdk::{contract, contractimpl, Env, Address, BytesN, Map};
 
 #[contract]
-pub struct StellarIntegration;
+pub struct StellarIntegrationContract;
+
+#[derive(Clone)]
+pub struct WorkerPayment {
+    worker: Address,
+    employer: Address,
+    amount: u64,
+    processed: bool,
+    timestamp: u64,
+}
 
 #[contractimpl]
-impl StellarIntegration {
-    // Function to receive and validate a ZK payroll proof from Aleo
-    pub fn receive_payroll_proof(env: Env, worker: Address, proof: BytesN<32>) -> bool {
-        // Placeholder: Implement actual proof validation logic
-        let is_valid = Self::verify_proof(&proof);
+impl StellarIntegrationContract {
+    // Assign payroll to a worker
+    pub fn assign_payroll(env: Env, worker: Address, employer: Address, amount: u64) -> bool {
+        assert!(amount > 0, "Payroll amount must be greater than zero");
 
-        if is_valid {
-            // Store proof on Stellar ledger for payroll processing
-            env.storage().set(&worker, &proof);
+        let mut payments: Map<Address, WorkerPayment> = env.storage().persistent().get().unwrap_or_default();
+        payments.set(worker.clone(), WorkerPayment {
+            worker: worker.clone(),
+            employer: employer.clone(),
+            amount,
+            processed: false,
+            timestamp: env.ledger().timestamp(),
+        });
+
+        env.storage().persistent().set(&payments);
+        true
+    }
+
+    // Verify worker payroll through ZK proof or integration with Aleo
+    pub fn verify_payroll(env: Env, worker: Address, zk_proof: BytesN<32>) -> bool {
+        // Placeholder for ZK verification (to be integrated with Aleo network)
+        let valid = StellarIntegrationContract::verify_aleopayroll(env.clone(), worker.clone(), zk_proof);
+        assert!(valid, "Invalid ZK proof");
+
+        true
+    }
+
+    // Placeholder to execute payroll payment on Stellar
+    pub fn execute_stellar_payment(env: Env, worker: Address, amount: u64) -> bool {
+        // Placeholder for actual fund transfer to Stellar network (implement Stellar SDK call)
+        true
+    }
+
+    // Verify payroll details using Aleo network (ZK proof verification)
+    pub fn verify_aleopayroll(env: Env, worker: Address, zk_proof: BytesN<32>) -> bool {
+        // Placeholder for verification logic
+        // Integrate with Aleo network for actual verification
+        true
+    }
+
+    // Process payroll for a worker (after ZK validation)
+    pub fn process_payroll(env: Env, worker: Address, zk_proof: BytesN<32>) -> bool {
+        // First verify ZK proof or Aleo validation
+        let valid = StellarIntegrationContract::verify_payroll(env.clone(), worker.clone(), zk_proof);
+        if !valid {
+            return false;
         }
 
-        is_valid
-    }
+        // Retrieve the worker payment record
+        let mut payments: Map<Address, WorkerPayment> = env.storage().persistent().get().unwrap_or_default();
+        let payment = payments.get(&worker).expect("Payment record not found");
 
-    // Placeholder function for proof verification logic
-    pub fn verify_proof(proof: &BytesN<32>) -> bool {
-        // Implement Soroban-based proof verification (to be replaced with actual logic)
-        proof.len() == 32
-    }
+        // Ensure payroll has not been processed
+        assert!(!payment.processed, "Payroll already processed");
 
-    // Function to retrieve a payroll proof for audit purposes
-    pub fn get_payroll_proof(env: Env, worker: Address) -> Option<BytesN<32>> {
-        env.storage().get(&worker)
+        // Execute payment on Stellar
+        let success = StellarIntegrationContract::execute_stellar_payment(env.clone(), worker.clone(), payment.amount);
+        if success {
+            // Mark payroll as processed
+            let processed_payment = WorkerPayment {
+                worker: payment.worker.clone(),
+                employer: payment.employer.clone(),
+                amount: payment.amount,
+                processed: true,
+                timestamp: payment.timestamp,
+            };
+
+            payments.set(worker, processed_payment);
+            env.storage().persistent().set(&payments);
+        }
+
+        success
     }
-}
+    }
