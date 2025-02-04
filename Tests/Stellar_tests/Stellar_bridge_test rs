@@ -1,0 +1,113 @@
+#[cfg(test)]
+mod stellar_bridge_tests {
+    use soroban_sdk::{testutils::Address as _, Address, Env, Symbol, Vec};
+    use crate::{StellarBridgeContract, StellarBridgeClient};
+
+    #[test]
+    fn test_stellar_bridge_initialization() {
+        let env = Env::default();
+        let admin = Address::generate(&env);
+        let contract_id = env.register_contract(None, StellarBridgeContract);
+        let client = StellarBridgeClient::new(&env, &contract_id);
+
+        client.initialize(&admin);
+
+        let stored_admin = client.get_admin();
+        assert_eq!(stored_admin, admin);
+    }
+
+    #[test]
+    fn test_stellar_deposit() {
+        let env = Env::default();
+        let admin = Address::generate(&env);
+        let user = Address::generate(&env);
+        let contract_id = env.register_contract(None, StellarBridgeContract);
+        let client = StellarBridgeClient::new(&env, &contract_id);
+
+        client.initialize(&admin);
+
+        let deposit_amount: u64 = 100_000;
+        client.deposit(&user, deposit_amount);
+
+        let balance = client.get_balance(&user);
+        assert_eq!(balance, deposit_amount);
+    }
+
+    #[test]
+    fn test_stellar_withdrawal() {
+        let env = Env::default();
+        let admin = Address::generate(&env);
+        let user = Address::generate(&env);
+        let contract_id = env.register_contract(None, StellarBridgeContract);
+        let client = StellarBridgeClient::new(&env, &contract_id);
+
+        client.initialize(&admin);
+
+        let deposit_amount: u64 = 150_000;
+        client.deposit(&user, deposit_amount);
+
+        let withdraw_amount: u64 = 50_000;
+        client.withdraw(&user, withdraw_amount);
+
+        let remaining_balance = client.get_balance(&user);
+        assert_eq!(remaining_balance, deposit_amount - withdraw_amount);
+    }
+
+    #[test]
+    fn test_cross_chain_transfer() {
+        let env = Env::default();
+        let admin = Address::generate(&env);
+        let sender = Address::generate(&env);
+        let receiver = Address::generate(&env);
+        let contract_id = env.register_contract(None, StellarBridgeContract);
+        let client = StellarBridgeClient::new(&env, &contract_id);
+
+        client.initialize(&admin);
+
+        let transfer_amount: u64 = 75_000;
+        client.deposit(&sender, transfer_amount);
+
+        client.cross_chain_transfer(&sender, &receiver, transfer_amount);
+
+        let sender_balance = client.get_balance(&sender);
+        let receiver_balance = client.get_balance(&receiver);
+
+        assert_eq!(sender_balance, 0);
+        assert_eq!(receiver_balance, transfer_amount);
+    }
+
+    #[test]
+    fn test_stellar_bridge_insufficient_funds() {
+        let env = Env::default();
+        let admin = Address::generate(&env);
+        let user = Address::generate(&env);
+        let contract_id = env.register_contract(None, StellarBridgeContract);
+        let client = StellarBridgeClient::new(&env, &contract_id);
+
+        client.initialize(&admin);
+
+        let withdraw_amount: u64 = 10_000; // No deposit made
+        let withdrawal_result = client.withdraw(&user, withdraw_amount);
+
+        assert_eq!(withdrawal_result, Symbol::new(&env, "Insufficient Funds"));
+    }
+
+    #[test]
+    fn test_stellar_transaction_verification() {
+        let env = Env::default();
+        let admin = Address::generate(&env);
+        let user = Address::generate(&env);
+        let contract_id = env.register_contract(None, StellarBridgeContract);
+        let client = StellarBridgeClient::new(&env, &contract_id);
+
+        client.initialize(&admin);
+
+        let deposit_amount: u64 = 500_000;
+        client.deposit(&user, deposit_amount);
+
+        let tx_id = client.get_latest_tx_id(&user);
+        let verification_status = client.verify_transaction(&tx_id);
+
+        assert_eq!(verification_status, Symbol::new(&env, "Verified"));
+    }
+}
