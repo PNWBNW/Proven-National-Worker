@@ -15,7 +15,7 @@ contract PNWBridgePayroll is Ownable, ReentrancyGuard {
     }
 
     struct Employer {
-        address employer;
+        address employerAddress;
         uint256 totalDeposited;
         uint256 taxPaid;
         bool isCompliant;
@@ -23,12 +23,14 @@ contract PNWBridgePayroll is Ownable, ReentrancyGuard {
 
     mapping(address => Employer) public employers;
     mapping(address => Payroll) public payrolls;
+    address[] public payrollQueue;
 
     event PayrollDeposited(address indexed employer, uint256 amount);
     event PayrollProcessed(address indexed worker, uint256 amount);
     event EmployerComplianceUpdated(address indexed employer, bool isCompliant);
     event TaxPaid(address indexed employer, uint256 amount);
-    
+    event PayrollBatchProcessed(uint256 batchSize);
+
     modifier onlyCompliantEmployer() {
         require(employers[msg.sender].isCompliant, "Employer is not compliant");
         _;
@@ -53,6 +55,7 @@ contract PNWBridgePayroll is Ownable, ReentrancyGuard {
         require(employers[msg.sender].totalDeposited >= amount, "Insufficient employer balance");
 
         payrolls[worker] = Payroll(worker, amount, false);
+        payrollQueue.push(worker); // Add to rollup queue
         employers[msg.sender].totalDeposited -= amount;
     }
 
@@ -63,8 +66,30 @@ contract PNWBridgePayroll is Ownable, ReentrancyGuard {
 
         payroll.processed = true;
         require(usdcToken.transfer(worker, payroll.amount), "Transfer failed");
-        
+
         emit PayrollProcessed(worker, payroll.amount);
+    }
+
+    function processPayrollBatch(uint256 batchSize) external nonReentrant {
+        require(batchSize > 0 && batchSize <= payrollQueue.length, "Invalid batch size");
+
+        for (uint256 i = 0; i < batchSize; i++) {
+            address worker = payrollQueue[i];
+            Payroll storage payroll = payrolls[worker];
+            if (!payroll.processed) {
+                payroll.processed = true;
+                usdcToken.transfer(worker, payroll.amount);
+                emit PayrollProcessed(worker, payroll.amount);
+            }
+        }
+
+        // Remove processed workers from queue
+        for (uint256 i = 0; i < batchSize; i++) {
+            payrollQueue[i] = payrollQueue[payrollQueue.length - 1];
+            payrollQueue.pop();
+        }
+
+        emit PayrollBatchProcessed(batchSize);
     }
 
     function payTax(uint256 amount) external {
@@ -72,7 +97,7 @@ contract PNWBridgePayroll is Ownable, ReentrancyGuard {
         require(usdcToken.transferFrom(msg.sender, address(this), amount), "Transfer failed");
 
         employers[msg.sender].taxPaid += amount;
-        employers[msg.sender].isCompliant = true; // Assume compliance upon tax payment
+        employers[msg.sender].isCompliant = true;
 
         emit TaxPaid(msg.sender, amount);
         emit EmployerComplianceUpdated(msg.sender, true);
