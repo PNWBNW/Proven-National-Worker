@@ -1,129 +1,61 @@
-# **Whitepaper: Proven National Worker (PNW) Smart Contract System**
+# Proven National Workers (PNW) Smart Contract System  
 
-## **Abstract**
+## Overview  
+The **PNW Smart Contract System** is a decentralized payroll, governance, and compliance framework for **Proven National Citizen Workers (PNcW)** and **Proven National Immigrant Workers (PNiW)**. It ensures fair, transparent, and regulatory-compliant employment through **on-chain governance, automated payroll, and verifiable identity records**.  
 
-The **Proven National Worker (PNW) Smart Contract System** introduces a decentralized, transparent, and compliant framework to manage employment, payroll, and governance for **Proven National Citizen Workers (PNcW)** and **Proven National Immigrant Workers (PNiW)**. This system ensures a secure, scalable approach to managing migrant labor through blockchain technology, incentivized verification, decentralized governance, and cross-border payroll integration, including **Stellar** and **Aleo** networks.
+## Key Features  
 
-## **Table of Contents**
-1. [Introduction](#introduction)
-2. [Motivation & Problem Statement](#motivation--problem-statement)
-3. [System Overview](#system-overview)
-4. [Technology Stack](#technology-stack)
-   - Blockchain Architecture
-   - Aleo Integration
-   - Stellar Integration
-5. [Components & Smart Contracts](#components--smart-contracts)
-   - Worker Identity Verification
-   - Payroll System
-   - Governance & SubDAOs
-   - Farm Investments & Payouts
-   - ZPass Verification
-6. [Security & Compliance](#security--compliance)
-   - Tax Compliance & Payroll Governance
-   - ZK-Proof Mechanism for Stellar Integration
-   - Cross-border Employment Compliance
-7. [Incentives](#incentives)
-   - Worker Benefits
-   - Employer Incentives
-   - SubDAO Governance Incentives
-8. [Conclusion](#conclusion)
-9. [Future Work & Roadmap](#future-work--roadmap)
-10. [References](#references)
+### **Worker Identity & Verification**  
+- **On-chain identity records** for PNcW & PNiW.  
+- **Industry-specific verification fields** for job eligibility.  
+- **ZPass Integration (Optional)**:  
+  - Verified workers get **faster payroll processing**.  
+  - Receive **+0.5% APY** on unpaid wages.  
+  - Enhanced employer trust and compliance verification.  
 
-## **1. Introduction**
+### **Payroll & Compliance**  
+- Payroll processed **on-chain** with **optional ZPass verification**.  
+- Supports **Aleo-native USDC** and **EVM-bridged USDC**.  
+- **Aleo ↔ Stellar Payroll Integration**:  
+  - Payroll data converted into a **ZK-proof** before being sent to **Soroban (Stellar’s smart contract layer)**.  
+  - Soroban verifies **worker identity, employer compliance, and tax payments** before releasing payouts.  
+  - Supports **stablecoin payouts** (USDC, EURC) for international workers.  
+  - Future automation: **holding funds until tax compliance confirmation**.  
+- Employers must prepay **wages & taxes** before hiring workers.  
 
-The **PNW Smart Contract System** provides a decentralized framework that allows for automated payroll, verifiable worker identities, and compliance with global tax regulations. By integrating the Aleo and Stellar blockchain networks, this system aims to establish a borderless workforce where international workers (PNcW and PNiW) can seamlessly access payroll and investment opportunities. Through SubDAO governance and incentivized participation, the system ensures that the rights of workers are protected while maintaining transparency and fairness in all processes.
+### **SubDAO Governance**  
+- Workers are grouped into **SubDAOs** based on industry & region.  
+- Each worker gets **one vote** in governance decisions.  
+- **Employer tax compliance monitoring** with **automated penalties**.  
+- SubDAOs vote on:  
+  - **Employer penalties** for non-compliance.  
+  - **Fund allocation** for community initiatives.  
+  - **Farm investment payouts** (via Merkle validation).  
 
-## **2. Motivation & Problem Statement**
+### **Farm Investments & Payouts**  
+- **Unified investment pool** for **PNcW & PNiW farms**.  
+- Monthly **payouts on the 1st** using **Merkle proofs** for security.  
+- SubDAOs can vote to:  
+  - Approve **farm investment payout**.  
+  - Redirect payout to **worker identity fund**.  
+  - Delay payout if network congestion is high.  
+  - Deny payout if fraud is suspected.  
 
-The global migrant workforce often faces a lack of transparency, security, and fairness in traditional payroll systems. Migrant workers may encounter difficulties in ensuring tax compliance, securing timely wages, and verifying their employment history. Additionally, cross-border employment presents a challenge in reconciling differing regulatory requirements. The PNW system addresses these issues by leveraging blockchain technology to ensure:
-- **Timely, verifiable payroll**
-- **Automatic tax compliance**
-- **Worker rights protection** through decentralized governance (SubDAOs)
-- **Cross-border payroll integration** through Aleo and Stellar
+## **Smart Contract Components**  
+- **Worker Identity Contract** (`worker_identity.leo`)  
+- **Payroll Contract** (`pnw_payroll.leo`)  
+- **SubDAO Governance Contract** (`subdao_governance.leo`)  
+- **Employer Agreement Contract** (`employer_agreement.leo`)  
+- **Farm Investment Contract** (`farm_investment.leo`)  
+- **Bridge Payroll Contract** (`pnwbridgepayroll.sol`)  
+- **Merkle Decision Contract** (`merkle_decision_maker.leo`)  
+- **Stellar Integration Contract** (`stellar_payroll.leo`)  
 
-## **3. System Overview**
+## **Deployment & Testing**  
+- **Batch deployment** of all contracts.  
+- **Automated testing scripts** for payroll, identity, and governance.  
+- **Run `run_tests.sh` before deploying to mainnet**.  
 
-The **PNW Smart Contract System** is built on Aleo's **zero-knowledge (ZK) technology** for privacy-preserving payroll management and governance. The system is structured into two key components:
-1. **Proven National Citizen Workers (PNcW)**: Workers holding a nationality from the country they work in.
-2. **Proven National Immigrant Workers (PNiW)**: Workers who are non-citizens but legally employed through migrant work visas.
-
-These workers' identities, payrolls, and governance rights are managed on-chain, using smart contracts, to provide transparency and security. Payments are processed using **Aleo’s native USDC** for domestic payroll or **bridged USDC** for international workers, with **Stellar** integration enabling cross-border payouts.
-
-## **4. Technology Stack**
-
-### Blockchain Architecture
-The system uses Aleo's **zero-knowledge (ZK) proofs** to enable private and efficient transaction processing. Aleo’s secure execution environment ensures that worker data is only accessible to authorized parties.
-
-### Aleo Integration
-Aleo’s **privacy-preserving infrastructure** provides a foundation for managing sensitive worker data while ensuring compliance. **Aleo-native USDC** is used for local payments, and **ZK-proofs** validate worker payroll records.
-
-### Stellar Integration
-The Stellar network, used for **cross-border payroll**, ensures global interoperability. The **Soroban smart contract layer** on Stellar will verify **ZK-proofs** generated by Aleo, ensuring the validity of payroll data and compliance with tax regulations.
-
-## **5. Components & Smart Contracts**
-
-### Worker Identity Verification
-The **Worker Identity Smart Contract** ensures that workers’ identities are verified on-chain, allowing for reliable payroll processing. The integration with **ZPass** enables faster processing for ZPass-verified workers, who also benefit from higher trust fund contributions.
-
-### Payroll System
-The **Payroll Smart Contract** handles payroll distribution, based on agreed wages, ensuring **compliance with local and international tax regulations**. Employers are required to prepay **wages and taxes** to ensure funds are available for timely payouts.
-
-### Governance & SubDAOs
-**SubDAOs** are responsible for **voting on key decisions** within the system, such as:
-- Employer penalties for non-compliance
-- Farm investment payouts
-- Distribution of community funds
-Each worker holds one vote within their SubDAO, ensuring decentralized and democratic decision-making.
-
-### Farm Investments & Payouts
-The **Farm Investment Smart Contract** tracks investments made into worker cooperatives or farms. Payouts are made monthly, with **Merkle proofs** validating payouts, ensuring transparency and accountability. SubDAOs can vote on payout approval, delays, or denials based on network conditions.
-
-### ZPass Verification
-ZPass allows workers to **prove their identity** securely, using **zero-knowledge proofs** to avoid exposing sensitive information. ZPass-verified workers benefit from faster payroll processing and higher trust fund contributions.
-
-## **6. Security & Compliance**
-
-### Tax Compliance & Payroll Governance
-Automated payroll compliance is managed through smart contracts that handle:
-- **Employer tax payments**
-- **Automated tax payments to governments** based on SubDAO approval
-The system ensures that only compliant employers can hire workers, with penalties for non-compliance.
-
-### ZK-Proof Mechanism for Stellar Integration
-Payroll data is verified using **ZK-proofs**, which ensure that only valid employment records are processed by **Stellar’s Soroban contract**. This enables seamless cross-border payments while maintaining **privacy and security**.
-
-### Cross-border Employment Compliance
-The integration with Stellar allows for **global payroll processing**, ensuring that international workers’ earnings are tracked, compliant, and paid in a timely manner.
-
-## **7. Incentives**
-
-### Worker Benefits
-Workers benefit from:
-- **Higher trust fund contributions** if verified with ZPass
-- **Priority payroll processing**
-- **Increased worker protection** through SubDAO governance
-
-### Employer Incentives
-Employers who comply with tax regulations and provide timely wages will benefit from:
-- **Lower fees** for payroll processing
-- **Access to a reliable, compliant workforce**
-
-### SubDAO Governance Incentives
-SubDAOs have the authority to govern the **distribution of funds**, make decisions about **investment payouts**, and **penalize non-compliant employers**.
-
-## **8. Conclusion**
-
-The **PNW Smart Contract System** enables a **transparent, secure, and compliant framework** for managing workers in the **global labor market**. Through decentralized governance and blockchain technology, workers can access reliable payroll and benefits, while employers are incentivized to comply with tax and regulatory standards. Stellar integration enhances the global scope of this solution, enabling cross-border employment with ease and compliance.
-
-## **9. Future Work & Roadmap**
-
-- **Q2 2025**: Full integration of **ZPass verification** for faster payroll processing.
-- **Q3 2025**: Expansion to additional countries and regulatory compliance updates.
-- **Q4 2025**: **Automated dispute resolution** system and further integration with **government APIs** for employment verification.
-- **2026**: Expand the system to include additional **payment networks** and **regional SubDAOs** for better scalability.
-
-## **10. References**
-- Aleo Protocol Documentation
-- Stellar Foundation: Soroban Smart Contracts
-- ZPass Whitepaper
+## **Contributors**  
+- **Developer**: Joshua Daniel Day  
+- **Advisors**: Aleo Team  
