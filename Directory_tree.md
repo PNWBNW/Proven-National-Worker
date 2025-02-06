@@ -1,8 +1,6 @@
 PNW-Smart-Contract/
 ├── contracts/
-
 │   ├── aleo/
-
 │   │   ├── employer_agreement.leo
 │   │   ├── farm_investment.leo
 │   │   ├── government_api.leo
@@ -21,7 +19,6 @@ PNW-Smart-Contract/
 │   │   ├── process_tax_compliance.leo
 │   │   ├── worker_identity.leo
 │   │   ├── zk_verifier.leo
-
 │   ├── solidity/
 │   │   ├── employer_contract.sol
 │   │   ├── PNWbridgepayroll.sol
@@ -29,7 +26,6 @@ PNW-Smart-Contract/
 │   │   ├── pniw_payroll.sol
 │   │   ├── staking_contract.sol
 │   │   ├── worker_contract.sol
-
 │   ├── stellar/
 │   │   ├── farm_investment.rs
 │   │   ├── payroll_rs.rs
@@ -38,19 +34,16 @@ PNW-Smart-Contract/
 │   │   ├── zpass_rs.rs
 │   │   ├── pncw_trust_pool.rs
 │   │   ├── pniw_trust_pool.rs
-
 ├── docs/
 │   ├── architecture.md
 │   │   ├── changelog.md
 │   │   ├── readme.md
 │   │   ├── whitepaper.md
-
 ├── scripts/
 │   ├── compile.sh
 │   ├── deploy.sh
 │   ├── run_tests.sh
 │   ├── verify_zpass.sh
-
 ├── tests/
 │   ├── aleo_tests/
 │   │   ├── employer_agreement_test.leo
