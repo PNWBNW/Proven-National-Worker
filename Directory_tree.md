@@ -20,15 +20,6 @@ PNW-Project
 │   │   │── compliance_tracking.leo  
 │   │   │── government_api.leo  
 │   │   │── worker_identity.leo  
-│   │── tests  
-│   │   │── employer_agreement_test.leo  
-│   │   │── farm_investment_test.leo  
-│   │   │── main_test.leo  
-│   │   │── pncw_payroll_test.leo  
-│   │   │── pncw_trust_pool_test.leo  
-│   │   │── pniw_payroll_test.leo  
-│   │   │── pniw_trust_pool_test.leo  
-│   │   │── worker_identity_test.leo  
 │  
 │── solidity  
 │   │── contracts  
@@ -37,11 +28,6 @@ PNW-Project
 │   │   │── pniw_payroll.sol  
 │   │   │── staking_contract.sol  
 │   │   │── worker_identity.sol  
-│   │── tests  
-│   │   │── PNWbridgepayroll_test.sol  
-│   │   │── pncw_payroll_test.sol  
-│   │   │── pniw_payroll_test.sol  
-│   │   │── worker_identity_test.sol  
 │  
 │── stellar  
 │   │── contracts  
@@ -52,10 +38,23 @@ PNW-Project
 │   │   │── stellar_integration.rs  
 │   │   │── zk_payroll.rs  
 │   │   │── zpass.rs  
-│   │── tests  
-│   │   │── stellar_integration_test.rs  
-│   │   │── zk_payroll_test.rs  
-│   │   │── zpass_test.rs  
+│  
+│── tests  
+│   │── employer_agreement_test.leo  
+│   │── farm_investment_test.leo  
+│   │── main_test.leo  
+│   │── pncw_payroll_test.leo  
+│   │── pncw_trust_pool_test.leo  
+│   │── pniw_payroll_test.leo  
+│   │── pniw_trust_pool_test.leo  
+│   │── worker_identity_test.leo  
+│   │── PNWbridgepayroll_test.sol  
+│   │── pncw_payroll_test.sol  
+│   │── pniw_payroll_test.sol  
+│   │── worker_identity_test.sol  
+│   │── stellar_integration_test.rs  
+│   │── zk_payroll_test.rs  
+│   │── zpass_test.rs  
 │  
 │── scripts  
 │   │── deploy_aleo.sh  
