@@ -27,6 +27,7 @@ function register_investment(employer: address, amount: u64, selected_option: u8
 
     // **Step 2: Enforce Compliance Rules**
     assert!(compliance_tracking::verify_farm_type(employer, farm_type), "Farm type not allowed.");
+    assert!(compliance_tracking::verify_certification(employer, farm_type), "Certification not verified.");
     assert!(compliance_tracking::check_worker_investment_cap(employer, amount), "Investment limit exceeded.");
     assert!(compliance_tracking::check_payroll_compliance(employer), "Employer has unpaid payroll obligations.");
 
@@ -60,6 +61,16 @@ function finalize_investments() -> bool {
 
     reset_investments();
     
+    return true;
+}
+
+/// **Function: claim_product_rights**
+/// - If an employer has unpaid payroll, workers can claim product rights instead of investment payouts.
+function claim_product_rights(worker: address, employer: address, unpaid_amount: u64) -> bool {
+    let available_products: u64 = get_farm_product_value(employer);
+    assert!(available_products >= unpaid_amount, "Insufficient product value to cover payroll debt.");
+
+    allocate_product_rights(worker, employer, unpaid_amount);
     return true;
 }
 
