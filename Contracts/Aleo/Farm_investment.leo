@@ -1,126 +1,110 @@
-// farm_investments.leo
+program farm_investment.aleo;
 
-// Import required libraries
-import "std/contract.leo";
+/// **Struct: InvestmentRecord**
+/// - Stores individual worker investment details.
+struct InvestmentRecord {
+    owner: address,
+    amount: u64,
+    selected_option: u8,  // 1 = Sell, 2 = Reinvest, 3 = Donate, 4 = Trade
+    farm_type: u8         // Categorizes the investment
+}
 
-// Contract definition for farm investments
-contract FarmInvestments {
+/// **Mappings**
+mapping investment_ledger: address => InvestmentRecord;  // Tracks investments per worker
+mapping total_option_votes: u8 => u64;  // Tracks votes per investment option
+mapping total_investments: u8 => u64;  // Tracks total investment per option
+mapping farm_type_totals: u8 => u64;  // Tracks total investment per farm type
 
-    // Define the struct to store farm investment data
-    struct FarmInvestment {
-        address farmOwner;
-        uint64 investmentAmount;
-        bool payoutApproved;
-        bool investmentComplete;
-        uint64 payoutDate;
-        string farmType; // E.g., "Organic", "Sustainable", etc.
-    }
+/// **Function: register_investment**
+/// - Allows a worker to register an investment.
+/// - Enforces farm type, certification, and payroll compliance.
+function register_investment(employer: address, amount: u64, selected_option: u8, farm_type: u8) -> bool {
+    let worker: address = caller();
 
-    // State variables
-    public farmInvestmentsData: map<address, FarmInvestment>;
-    public payoutQueue: vector<address>;
-    public payoutStatus: map<address, bool>;
+    // **Step 1: Validate Inputs**
+    assert!(selected_option >= 1 && selected_option <= 4, "Invalid investment option.");
+    assert!(farm_type >= 1 && farm_type <= 12, "Invalid farm type.");
 
-    // Events
-    event InvestmentMade(farmOwner: address, amount: uint64);
-    event PayoutApproved(farmOwner: address, payoutAmount: uint64);
-    event PayoutDenied(farmOwner: address);
-    event PayoutDelayed(farmOwner: address);
+    // **Step 2: Enforce Compliance Rules**
+    assert!(compliance_tracking::verify_farm_type(employer, farm_type), "Farm type not allowed.");
+    assert!(compliance_tracking::check_worker_investment_cap(employer, amount), "Investment limit exceeded.");
+    assert!(compliance_tracking::check_payroll_compliance(employer), "Employer has unpaid payroll obligations.");
 
-    // Function for making a farm investment
-    public fun makeInvestment(farmOwner: address, amount: uint64, farmType: string) {
-        // Ensure the investment is positive
-        assert!(amount > 0, "Investment amount must be greater than zero");
+    // **Step 3: Log Investment**
+    let record = InvestmentRecord { owner: worker, amount, selected_option, farm_type };
+    investment_ledger[worker] = record;
 
-        // Store the investment data
-        self.farmInvestmentsData[farmOwner] = FarmInvestment {
-            farmOwner: farmOwner,
-            investmentAmount: amount,
-            payoutApproved: false,
-            investmentComplete: false,
-            payoutDate: 0,  // Placeholder until payout date is set
-            farmType: farmType
-        };
+    total_option_votes[selected_option] += 1;
+    total_investments[selected_option] += amount;
+    farm_type_totals[farm_type] += amount;
 
-        // Emit event for making an investment
-        self.emit(InvestmentMade(farmOwner, amount));
-    }
+    // **Step 4: Record Worker Investment**
+    assert!(compliance_tracking::record_worker_investment(employer, amount), "Investment tracking failed.");
 
-    // Function for SubDAO to approve payout to a farm
-    public fun approvePayout(farmOwner: address, payoutAmount: uint64, currentDate: uint64) {
-        // Ensure the farm investment exists
-        assert!(self.farmInvestmentsData.contains(farmOwner), "Farm investment not found");
+    return true;
+}
 
-        // Check if the payout is approved already
-        assert!(!self.farmInvestmentsData[farmOwner].payoutApproved, "Payout already approved");
+/// **Function: finalize_investments**
+/// - Processes roll-up voting and distributes investments at harvest/work cycle completion.
+function finalize_investments() -> bool {
+    let total_votes: u64 = total_option_votes[1] + total_option_votes[2] + total_option_votes[3] + total_option_votes[4];
+    assert!(total_votes > 0, "No investments to finalize.");
 
-        // Update the payout approval status
-        self.farmInvestmentsData[farmOwner].payoutApproved = true;
-        self.farmInvestmentsData[farmOwner].payoutDate = currentDate;
-
-        // Add to the payout queue
-        self.payoutQueue.push(farmOwner);
-
-        // Emit the event
-        self.emit(PayoutApproved(farmOwner, payoutAmount));
-    }
-
-    // Function for SubDAO to deny payout to a farm
-    public fun denyPayout(farmOwner: address) {
-        // Ensure the farm investment exists
-        assert!(self.farmInvestmentsData.contains(farmOwner), "Farm investment not found");
-
-        // Deny payout
-        self.farmInvestmentsData[farmOwner].payoutApproved = false;
-
-        // Emit the event
-        self.emit(PayoutDenied(farmOwner));
-    }
-
-    // Function for SubDAO to delay payout
-    public fun delayPayout(farmOwner: address) {
-        // Ensure the farm investment exists
-        assert!(self.farmInvestmentsData.contains(farmOwner), "Farm investment not found");
-
-        // Delay payout
-        self.emit(PayoutDelayed(farmOwner));
-    }
-
-    // Function to process the payout if the payout date has arrived
-    public fun processPayout(farmOwner: address, currentDate: uint64) {
-        // Ensure the farm investment exists
-        assert!(self.farmInvestmentsData.contains(farmOwner), "Farm investment not found");
-
-        // Check if payout is approved and the date has arrived
-        if (self.farmInvestmentsData[farmOwner].payoutApproved && currentDate >= self.farmInvestmentsData[farmOwner].payoutDate) {
-            // Process the payout (for example, transfer funds here)
-            // Placeholder logic for payout processing
-            self.farmInvestmentsData[farmOwner].investmentComplete = true;
-
-            // Emit event
-            self.emit(PayoutApproved(farmOwner, self.farmInvestmentsData[farmOwner].investmentAmount));
+    for option_id in [1, 2, 3, 4] {
+        let total_amount = total_investments[option_id];
+        
+        if total_amount > 0 {
+            distribute_payouts(option_id, total_amount);
         }
     }
 
-    // Function to check the status of a farm investment
-    public fun checkInvestmentStatus(farmOwner: address): FarmInvestment {
-        assert!(self.farmInvestmentsData.contains(farmOwner), "Farm investment not found");
+    reset_investments();
+    
+    return true;
+}
 
-        // Return farm investment data
-        return self.farmInvestmentsData[farmOwner];
+/// **Helper Function: distribute_payouts**
+/// - Distributes investment returns based on selected options and farm type.
+function distribute_payouts(option_id: u8, total_amount: u64) -> bool {
+    for (worker, record) in investment_ledger {
+        if record.selected_option == option_id {
+            let proportional_share: u64 = (record.amount * total_amount) / total_investments[option_id];
+            process_payout(worker, option_id, record.farm_type, proportional_share);
+        }
+    }
+    return true;
+}
+
+/// **Helper Function: process_payout**
+/// - Handles the actual payout (sell, reinvest, donate, trade).
+/// - Associates payouts with farm type for tracking.
+function process_payout(worker: address, option_id: u8, farm_type: u8, amount: u64) -> bool {
+    match option_id {
+        1 => payout_usdc(worker, amount, farm_type),  // Sell for USDC
+        2 => reinvest(worker, amount, farm_type),     // Reinvest
+        3 => donate(worker, amount, farm_type),       // Donate to community reserves
+        4 => trade(worker, amount, farm_type),        // Trade for other farm products
+        _ => assert!(false, "Invalid payout option.")
     }
 
-    // Function to get the current payout queue
-    public fun getPayoutQueue(): vector<address> {
-        return self.payoutQueue;
+    return true;
+}
+
+/// **Helper Function: reset_investments**
+/// - Clears investment records after a harvest cycle.
+function reset_investments() -> bool {
+    for (worker, _) in investment_ledger {
+        delete investment_ledger[worker];
     }
 
-    // Function to check if a payout is ready for a specific farm
-    public fun isPayoutReady(farmOwner: address, currentDate: uint64): bool {
-        // Ensure the farm investment exists
-        assert!(self.farmInvestmentsData.contains(farmOwner), "Farm investment not found");
-
-        // Check if payout is approved and the date has arrived
-        return self.farmInvestmentsData[farmOwner].payoutApproved && currentDate >= self.farmInvestmentsData[farmOwner].payoutDate;
+    for option_id in [1, 2, 3, 4] {
+        total_option_votes[option_id] = 0;
+        total_investments[option_id] = 0;
     }
+
+    for farm_type in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] {
+        farm_type_totals[farm_type] = 0;
+    }
+
+    return true;
 }
