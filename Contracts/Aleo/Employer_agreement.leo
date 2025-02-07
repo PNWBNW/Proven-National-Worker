@@ -1,78 +1,140 @@
-// employer_agreement.leo
+program employer_agreement.aleo;
 
-// Required libraries for contract and utilities
-import "std/contract.leo";
+/// **Mappings**
+mapping employer_farm_types: address => [u8];  // Stores allowed farm types per employer
+mapping employer_certifications: address => [string];  // Stores farm certifications
+mapping employer_max_worker_investment: address => u64;  // Maximum worker investment cap per employer
+mapping employer_current_worker_investment: address => u64;  // Tracks total worker investment per employer
 
-// Contract definition for employer agreement
-contract EmployerAgreement {
+/// **Farm Type Categories**
+/// 1 = Organic, 2 = Sustainable, 3 = Produce, 4 = Dairy, 5 = Poultry, 6 = Pork, 7 = Beef, 8 = Fish,
+/// 9 = Grains, 10 = Coffee, 11 = Spices, 12 = Teas
+mapping farm_type_labels: u8 => string = {
+    1 => "Organic",
+    2 => "Sustainable",
+    3 => "Produce",
+    4 => "Dairy",
+    5 => "Poultry",
+    6 => "Pork",
+    7 => "Beef",
+    8 => "Fish",
+    9 => "Grains",
+    10 => "Coffee",
+    11 => "Spices",
+    12 => "Teas"
+};
 
-    // Define a struct to store employer information
-    struct Employer {
-        address employerAddress;
-        string companyName;
-        string industry;
-        uint64 taxId;
-        bool isVerified;
-        bool agreementSigned;
+/// **Function: set_farm_types**
+/// - Employers define the farm types they produce.
+/// - Workers can only invest in these allowed types.
+/// - Prevents investing in unsupported farm categories.
+function set_farm_types(farm_types: [u8]) -> bool {
+    let employer: address = caller();
+    
+    // Validate farm types (1-12)
+    for farm_type in farm_types {
+        assert!(farm_type >= 1 && farm_type <= 12, "Invalid farm type.");
     }
 
-    // State variables
-    public employerData: map<address, Employer>;
-    public agreementApproval: map<address, bool>;
+    // Store allowed farm types for this employer
+    employer_farm_types[employer] = farm_types;
+    
+    return true;
+}
 
-    // Events to notify when certain actions occur
-    event AgreementSigned(employer: address);
-    event AgreementDenied(employer: address);
-    event EmployerVerified(employer: address);
+/// **Function: get_farm_types**
+/// - Returns the approved farm types for a specific employer.
+function get_farm_types(employer: address) -> [u8] {
+    return employer_farm_types[employer];
+}
 
-    // Function to verify the employer's details
-    public fun verifyEmployer(employer: address, companyName: string, taxId: uint64) {
-        // Ensure the employer has not been verified before
-        assert!(!self.employerData.contains(employer), "Employer already verified");
+/// **Function: set_max_worker_investment**
+/// - Employers can set a cap on total worker investment.
+/// - Prevents excessive worker investment from disrupting agreed-upon purchase deals.
+function set_max_worker_investment(max_investment: u64) -> bool {
+    let employer: address = caller();
+    employer_max_worker_investment[employer] = max_investment;
+    return true;
+}
 
-        // Store the verified employer details
-        self.employerData[employer] = Employer {
-            employerAddress: employer,
-            companyName: companyName,
-            industry: "Unknown",  // Placeholder until industry is updated
-            taxId: taxId,
-            isVerified: true,
-            agreementSigned: false
-        };
+/// **Function: get_max_worker_investment**
+/// - Returns the investment cap for a specific employer.
+function get_max_worker_investment(employer: address) -> u64 {
+    return employer_max_worker_investment[employer];
+}
 
-        // Emit an event to notify that the employer has been verified
-        self.emit(EmployerVerified(employer));
+/// **Function: register_certifications**
+/// - Employers submit their farm certifications for approval.
+/// - Examples: USDA Organic, Certified Humane, Non-GMO, Wild-Caught.
+function register_certifications(certifications: [string]) -> bool {
+    let employer: address = caller();
+    
+    // Ensure certifications are within allowed categories
+    for cert in certifications {
+        assert!(is_valid_certification(cert), "Invalid certification.");
+        assert!(is_certification_approved(cert), "Certification not verified.");
     }
 
-    // Function for employer to sign the agreement
-    public fun signAgreement(employer: address) {
-        // Ensure the employer is verified before they can sign the agreement
-        assert!(self.employerData.contains(employer), "Employer must be verified before signing");
+    employer_certifications[employer] = certifications;
+    
+    return true;
+}
 
-        // Update the employer's agreement status to signed
-        self.employerData[employer].agreementSigned = true;
+/// **Function: get_certifications**
+/// - Returns the certifications for a specific employer.
+function get_certifications(employer: address) -> [string] {
+    return employer_certifications[employer];
+}
 
-        // Emit an event to notify that the agreement has been signed
-        self.emit(AgreementSigned(employer));
-    }
+/// **Function: is_farm_type_allowed**
+/// - Checks if an employer allows a specific farm type.
+function is_farm_type_allowed(employer: address, farm_type: u8) -> bool {
+    let allowed_types = employer_farm_types[employer];
+    return contains(allowed_types, farm_type);
+}
 
-    // Function for employer to deny the agreement
-    public fun denyAgreement(employer: address) {
-        // Ensure the employer is verified before denying the agreement
-        assert!(self.employerData.contains(employer), "Employer must be verified before denying");
+/// **Function: is_certification_valid**
+/// - Ensures a certification is both registered and verified.
+function is_certification_valid(employer: address, certification: string) -> bool {
+    let certs = employer_certifications[employer];
+    return contains(certs, certification) && is_certification_approved(certification);
+}
 
-        // Set the agreement approval to false for the employer
-        self.agreementApproval[employer] = false;
+/// **Function: update_worker_investment**
+/// - Updates the total investment amount made by workers.
+/// - Ensures the cap is not exceeded.
+function update_worker_investment(employer: address, amount: u64) -> bool {
+    let current_total = employer_current_worker_investment[employer];
+    let max_limit = employer_max_worker_investment[employer];
 
-        // Emit an event to notify that the agreement has been denied
-        self.emit(AgreementDenied(employer));
-    }
+    assert!(current_total + amount <= max_limit, "Worker investment limit exceeded.");
+    
+    employer_current_worker_investment[employer] += amount;
+    
+    return true;
+}
 
-    // Check if the employer has signed the agreement
-    public fun checkAgreementStatus(employer: address): bool {
-        if (self.employerData.contains(employer)) {
-            return self.employerData[employer].agreementSigned;
-        }
-        return false;
-    }
+/// **Function: reset_worker_investment**
+/// - Resets worker investment tracking (called after each harvest cycle).
+function reset_worker_investment(employer: address) -> bool {
+    let authorized: address = caller();
+    assert!(authorized == employer, "Only the employer can reset investments.");
+
+    employer_current_worker_investment[employer] = 0;
+    
+    return true;
+}
+
+/// **Helper Function: is_valid_certification**
+/// - Ensures only recognized certifications can be registered.
+function is_valid_certification(cert: string) -> bool {
+    let valid_certs = ["USDA Organic", "Certified Humane", "Non-GMO", "Wild-Caught", 
+                       "Farm-Raised", "Gluten-Free", "Sustainable"];
+    return contains(valid_certs, cert);
+}
+
+/// **Helper Function: is_certification_approved**
+/// - Calls `Certification_Verifier.leo` to check if a certification is officially approved.
+function is_certification_approved(certification: string) -> bool {
+    return certification_verifier::is_certification_approved(certification);
 }
