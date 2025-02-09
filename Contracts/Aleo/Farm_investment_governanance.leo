@@ -1,107 +1,92 @@
-program farm_investment_governance.aleo;
+program farm_investment_governance.leo;
 
-/// **Mappings**
-mapping dao_investment_votes: u8 => u64;  // Tracks total votes per investment option
-mapping worker_vote_records: address => (u8, u64);  // Stores worker votes and investment amounts
-mapping total_voted_investments: u8 => u64;  // Tracks total investments per option
-mapping employer_unpaid_payroll: address => u64;  // Tracks unpaid payroll for employers
+mapping worker_investment_choices: mapping(address, string);  // Tracks each worker's investment decision
+mapping farm_voting_power: mapping(address, u64);  // Tracks voting power for each farm
+mapping farm_governance_policies: mapping(address, string);  // Stores governance rules for each farm
+mapping worker_investment_rights: mapping(address, bool);  // Determines if workers can control their investments
+mapping farm_nft_minting_rights: mapping(address, bool);  // Determines if a farm can mint RWA NFTs
+mapping farm_resale_policies: mapping(address, bool);  // Determines if RWA NFTs can be resold by bulk buyers
 
-/// **Function: vote_investment_outcome**
-/// - Workers vote on how their investments should be handled.
-/// - Uses roll-up voting for efficiency.
-/// - If employer has unpaid payroll, workers can claim product rights instead.
-function vote_investment_outcome(employer: address, selected_option: u8, investment_amount: u64) -> bool {
-    let worker: address = caller();
+constant DEFAULT_GOVERNANCE_POLICY: string = "Direct Farm-to-Table"; // Default governance policy
 
-    // **Step 1: Validate Inputs**
-    assert!(selected_option >= 1 && selected_option <= 4, "Invalid voting option.");
+// Fixed options for worker investment management
+constant OPTION_SELL: string = "Sell for USDC";
+constant OPTION_REINVEST: string = "Reinvest in next harvest";
+constant OPTION_DONATE: string = "Donate to community reserves";
+constant OPTION_TRADE: string = "Trade for other farm products";
 
-    // **Step 2: Check Employer Payroll Compliance**
-    let unpaid_payroll = compliance_tracking::get_unpaid_payroll(employer);
-    if unpaid_payroll > 0 {
-        return claim_product_rights(worker, employer, unpaid_payroll);
-    }
-
-    // **Step 3: Enforce Compliance Before Voting**
-    assert!(compliance_tracking::check_worker_investment_cap(employer, investment_amount), "Investment limit exceeded.");
-    assert!(compliance_tracking::check_payroll_compliance(employer), "Employer has unpaid payroll obligations.");
-
-    // **Step 4: Record Vote**
-    worker_vote_records[worker] = (selected_option, investment_amount);
-    dao_investment_votes[selected_option] += 1;
-    total_voted_investments[selected_option] += investment_amount;
-
-    return true;
+// Struct to track farm governance details
+struct FarmGovernance {
+    farm_address: address,
+    voting_power: u64,
+    governance_policy: string,
 }
 
-/// **Function: claim_product_rights**
-/// - Allows workers to claim products equal to unpaid payroll.
-function claim_product_rights(worker: address, employer: address, unpaid_amount: u64) -> bool {
-    let available_products: u64 = get_farm_product_value(employer);
-    assert!(available_products >= unpaid_amount, "Insufficient product value to cover payroll debt.");
-
-    allocate_product_rights(worker, employer, unpaid_amount);
-    return true;
+// Function to assign governance policies to farms
+function set_farm_governance_policy(farm: address, policy: string) {
+    farm_governance_policies[farm] = policy;
 }
 
-/// **Function: finalize_voting**
-/// - Processes roll-up voting at the end of an investment cycle.
-/// - Distributes investment returns proportionally based on votes.
-function finalize_voting() -> bool {
-    let total_votes: u64 = dao_investment_votes[1] + dao_investment_votes[2] + dao_investment_votes[3] + dao_investment_votes[4];
-    assert!(total_votes > 0, "No votes to finalize.");
-
-    for option_id in [1, 2, 3, 4] {
-        let total_amount = total_voted_investments[option_id];
-        
-        if total_amount > 0 {
-            distribute_voted_payouts(option_id, total_amount);
-        }
-    }
-
-    reset_voting_data();
-    
-    return true;
+// Function to enable worker investment control for a farm
+function enable_worker_investment_control(farm: address) {
+    worker_investment_rights[farm] = true;
 }
 
-/// **Helper Function: distribute_voted_payouts**
-/// - Allocates investment returns based on worker votes.
-/// - Ensures workers receive their proportional share.
-function distribute_voted_payouts(option_id: u8, total_amount: u64) -> bool {
-    for (worker, (voted_option, amount)) in worker_vote_records {
-        if voted_option == option_id {
-            let proportional_share: u64 = (amount * total_amount) / total_voted_investments[option_id];
-            process_voting_payout(worker, option_id, proportional_share);
-        }
-    }
-    return true;
+// Function to disable worker investment control for a farm
+function disable_worker_investment_control(farm: address) {
+    worker_investment_rights[farm] = false;
 }
 
-/// **Helper Function: process_voting_payout**
-/// - Handles actual payout based on worker votes.
-function process_voting_payout(worker: address, option_id: u8, amount: u64) -> bool {
-    match option_id {
-        1 => payout_usdc(worker, amount),  // Sell for USDC
-        2 => reinvest(worker, amount),     // Reinvest
-        3 => donate(worker, amount),       // Donate to community reserves
-        4 => trade(worker, amount),        // Trade for other farm products
-        _ => assert!(false, "Invalid payout option.")
-    }
-
-    return true;
+// Function to allow a farm to mint RWA NFTs
+function allow_farm_nft_minting(farm: address) {
+    farm_nft_minting_rights[farm] = true;
 }
 
-/// **Helper Function: reset_voting_data**
-/// - Clears voting records after an investment cycle.
-function reset_voting_data() -> bool {
-    for (worker, _) in worker_vote_records {
-        delete worker_vote_records[worker];
-    }
+// Function to prevent a farm from minting RWA NFTs
+function revoke_farm_nft_minting(farm: address) {
+    farm_nft_minting_rights[farm] = false;
+}
 
-    for option_id in [1, 2, 3, 4] {
-        dao_investment_votes[option_id] = 0;
-        total_voted_investments[option_id] = 0;
-    }
+// Function to enable or disable bulk buyer resale rights (default: disabled)
+function set_farm_resale_policy(farm: address, allow_resale: bool) {
+    farm_resale_policies[farm] = allow_resale;
+}
 
-    return true;
+// Function for each worker to select their own investment choice
+function select_investment_choice(worker: address, farm: address, choice: string) {
+    ensure!(worker_investment_rights[farm] == true, "Worker investment control is not enabled for this farm");
+    ensure!(
+        choice == OPTION_SELL || choice == OPTION_REINVEST || choice == OPTION_DONATE || choice == OPTION_TRADE,
+        "Invalid investment choice"
+    );
+
+    worker_investment_choices[worker] = choice;
+}
+
+// Function to process a worker's individual investment decision
+function process_worker_investment(worker: address, farm: address) -> string {
+    let choice = worker_investment_choices[worker];
+    ensure!(choice != "", "No investment choice has been made");
+
+    return choice;
+}
+
+// Function to check if a farm has worker investment control enabled
+function is_worker_investment_control_enabled(farm: address) -> bool {
+    return worker_investment_rights[farm];
+}
+
+// Function to check if a farm is authorized to mint RWA NFTs
+function is_farm_nft_minting_allowed(farm: address) -> bool {
+    return farm_nft_minting_rights[farm];
+}
+
+// Function to check if a farm allows resale by bulk buyers
+function is_farm_resale_allowed(farm: address) -> bool {
+    return farm_resale_policies[farm];
+}
+
+// Function to get a farm’s governance policy
+function get_farm_governance_policy(farm: address) -> string {
+    return farm_governance_policies[farm];
 }
