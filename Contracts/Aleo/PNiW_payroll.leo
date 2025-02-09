@@ -1,58 +1,64 @@
-// pniw_payroll.leo
+program pniw_payroll.leo;
 
-import 0x01::payroll;
-import 0x01::worker_identity;
-import 0x01::employer_agreement;
-import 0x01::process_tax_compliance;
-import 0x01::government_api;
+mapping employer_balances:
+    key address as field;
+    value u64 as field;
 
-// Structure to track PNiW payroll records
-struct PNiWPayroll has store {
-    worker_id: u64,
-    employer_id: u64,
-    amount: u64,
-    processed: bool,
+mapping payroll_history:
+    key address as field;
+    value (address, u64, bool) as record; // (Worker, Amount, Processed)
+
+mapping restricted_employers:
+    key address as field;
+    value bool as field;
+
+mapping employer_obligations:
+    key address as field;
+    value u64 as field;
+
+function process_payroll(public employer: address, public worker: address, public amount: u64) -> bool {
+    ensure(!restricted_employers.get_or_use(employer, false), "Employer is restricted");
+
+    let fiat_balance = FiatUSDCPool.get_fiat_balance(employer);
+    let aleo_balance = aleo_usdc_pool.get_employer_balance(employer);
+    let required_balance = aleo_usdc_pool.get_required_pool_balance(employer);
+
+    ensure(aleo_balance >= required_balance, "AleoUSDC Pool balance below 25% threshold");
+
+    if fiat_balance >= amount {
+        FiatUSDCPool.withdraw_for_payroll(employer, amount);
+        payroll_history.insert(worker, (employer, amount, true));
+        return true;
+    } else {
+        let shortfall = amount - fiat_balance;
+        ensure(aleo_balance >= shortfall, "Insufficient AleoUSDC to cover payroll shortfall");
+
+        aleo_usdc_pool.withdraw_for_payroll(employer, shortfall);
+        payroll_history.insert(worker, (employer, amount, true));
+        return true;
+    }
 }
 
-// Mapping to store payroll data
-mapping pniw_payroll_records: u64 -> PNiWPayroll;
-
-// Function to add a payroll entry
-public fun add_payroll(worker_id: u64, employer_id: u64, amount: u64) -> bool {
-    assert!(worker_identity::is_verified_worker(worker_id), 0);
-    assert!(employer_agreement::is_compliant_employer(employer_id), 0);
-    assert!(amount > 0, 0);
-
-    let new_payroll = PNiWPayroll {
-        worker_id: worker_id,
-        employer_id: employer_id,
-        amount: amount,
-        processed: false,
-    };
-
-    pniw_payroll_records[worker_id] = new_payroll;
+function restrict_employer(public employer: address) -> bool {
+    restricted_employers.insert(employer, true);
     return true;
 }
 
-// Function to process payroll for a worker
-public fun process_payroll(worker_id: u64) -> bool {
-    let mut payroll_entry = pniw_payroll_records[worker_id];
-
-    // Ensure employer is compliant before processing
-    let compliant = process_tax_compliance::check_compliance(payroll_entry.employer_id);
-    assert!(compliant, 0);
-
-    let success = payroll::execute_payroll(payroll_entry.worker_id, payroll_entry.amount);
-    if success {
-        payroll_entry.processed = true;
-        pniw_payroll_records[worker_id] = payroll_entry;
-    }
-
-    return success;
+function reinstate_employer(public employer: address) -> bool {
+    ensure(restricted_employers.contains(employer), "Employer is not restricted");
+    restricted_employers.insert(employer, false);
+    return true;
 }
 
-// Function to check if payroll has been processed
-public fun is_payroll_processed(worker_id: u64) -> bool {
-    let payroll_entry = pniw_payroll_records[worker_id];
-    return payroll_entry.processed;
+function get_payroll_status(public worker: address) -> (address, u64, bool) {
+    return payroll_history.get_or_use(worker, (0address, 0u64, false));
+}
+
+function update_employer_obligation(public employer: address, public obligation: u64) -> bool {
+    employer_obligations.insert(employer, obligation);
+    return true;
+}
+
+function get_employer_obligation(public employer: address) -> u64 {
+    return employer_obligations.get_or_use(employer, 0u64);
 }
