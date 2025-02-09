@@ -5,7 +5,7 @@ contract EmployerContract {
         address employerAddress;
         uint256 prepaidWages;
         uint256 prepaidTaxes;
-        uint256 investmentLimit;
+        uint256 fiatUSDCpool;
         bool isCompliant;
     }
 
@@ -17,9 +17,8 @@ contract EmployerContract {
         address indexed employer, 
         uint256 prepaidWages, 
         uint256 prepaidTaxes, 
-        uint256 investmentLimit, 
-        bool isCompliant, 
-        bool isRestricted
+        uint256 fiatUSDCpool, 
+        bool isCompliant
     );
 
     function employerManagement(
@@ -27,49 +26,42 @@ contract EmployerContract {
         address _employer, 
         uint256 _prepaidWages, 
         uint256 _prepaidTaxes, 
-        uint256 _investmentLimit, 
+        uint256 _fiatUSDCpool, 
         bool _isCompliant
     ) external {
         if (actionType == 1) { // Register Employer
             require(employers[msg.sender].employerAddress == address(0), "Employer already registered");
             require(_prepaidWages > 0 && _prepaidTaxes > 0, "Prepaid wages and taxes must be positive");
-            employers[msg.sender] = Employer(msg.sender, _prepaidWages, _prepaidTaxes, _investmentLimit, true);
-            emit EmployerAction(1, msg.sender, _prepaidWages, _prepaidTaxes, _investmentLimit, true, false);
+            employers[msg.sender] = Employer(msg.sender, _prepaidWages, _prepaidTaxes, _fiatUSDCpool, true);
+            emit EmployerAction(1, msg.sender, _prepaidWages, _prepaidTaxes, _fiatUSDCpool, true);
         } 
-        else if (actionType == 2) { // Update Compliance
+        else if (actionType == 2) { // Update Compliance Status
             require(employers[_employer].employerAddress != address(0), "Employer not found");
             employers[_employer].isCompliant = _isCompliant;
-            emit EmployerAction(2, _employer, 0, 0, 0, _isCompliant, restrictedEmployers[_employer]);
+            emit EmployerAction(2, _employer, employers[_employer].prepaidWages, employers[_employer].prepaidTaxes, employers[_employer].fiatUSDCpool, _isCompliant);
         } 
-        else if (actionType == 3) { // Set Investment Limit
-            require(employers[_employer].employerAddress != address(0), "Employer not found");
-            employers[_employer].investmentLimit = _investmentLimit;
-            emit EmployerAction(3, _employer, 0, 0, _investmentLimit, employers[_employer].isCompliant, restrictedEmployers[_employer]);
-        } 
-        else if (actionType == 4) { // Restrict Employer
+        else if (actionType == 3) { // Restrict Employer
             require(employers[_employer].employerAddress != address(0), "Employer not found");
             restrictedEmployers[_employer] = true;
-            emit EmployerAction(4, _employer, 0, 0, 0, employers[_employer].isCompliant, true);
         } 
-        else if (actionType == 5) { // Reinstate Employer
+        else if (actionType == 4) { // Reinstate Employer
             require(restrictedEmployers[_employer], "Employer is not restricted");
             restrictedEmployers[_employer] = false;
-            emit EmployerAction(5, _employer, 0, 0, 0, employers[_employer].isCompliant, false);
+        } 
+        else if (actionType == 5) { // Fund Fiat USDC Pool
+            require(_fiatUSDCpool > 0, "Deposit must be greater than zero");
+            employers[msg.sender].fiatUSDCpool += _fiatUSDCpool;
+            emit EmployerAction(5, msg.sender, employers[msg.sender].prepaidWages, employers[msg.sender].prepaidTaxes, employers[msg.sender].fiatUSDCpool, employers[msg.sender].isCompliant);
         } 
         else {
             revert("Invalid action type");
         }
     }
 
-    function employerQueries(uint8 queryType, address _employer) external view returns (
-        address employerAddress, uint256 prepaidWages, uint256 prepaidTaxes, uint256 investmentLimit, bool isCompliant, bool isRestricted
-    ) {
-        if (queryType == 1) { // Check if Employer is Restricted
-            return (_employer, 0, 0, 0, true, restrictedEmployers[_employer]);
-        } 
-        else if (queryType == 2) { // Get Employer Details
+    function employerQueries(uint8 queryType, address _employer) external view returns (uint256, uint256, uint256, bool) {
+        if (queryType == 1) { // Get Employer Payroll & Fiat Pool Balance
             Employer memory e = employers[_employer];
-            return (e.employerAddress, e.prepaidWages, e.prepaidTaxes, e.investmentLimit, e.isCompliant, restrictedEmployers[_employer]);
+            return (e.prepaidWages, e.prepaidTaxes, e.fiatUSDCpool, e.isCompliant);
         } 
         else {
             revert("Invalid query type");
