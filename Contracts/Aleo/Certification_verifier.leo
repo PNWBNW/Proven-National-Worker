@@ -1,4 +1,4 @@
-program certification_verifier.aleo;
+program certification_verifier.leo;
 
 /// **Mappings**
 mapping approved_certifications: string => bool;  // Stores approved certifications
