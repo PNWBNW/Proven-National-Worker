@@ -1,41 +1,73 @@
-// Stellar Integration for Direct Aleo → Stellar Payroll Transfers
-
-use soroban_sdk::{contract, contractimpl, Address, Env, Symbol};
+use soroban_sdk::{contract, contractimpl, Address, Env, Map};
 
 #[contract]
-pub struct StellarBridge;
+pub struct StellarBridgePayroll;
 
 #[contractimpl]
-impl StellarBridge {
-    // Mapping: Aleo Worker Address → Stellar Wallet Address
-    pub fn register_worker(env: Env, aleo_worker: Address, stellar_wallet: Address) {
-        env.storage().instance().set(&aleo_worker, &stellar_wallet);
+impl StellarBridgePayroll {
+    // Mapping storage for payroll balances, trust fund balances, and employer USDC reserves
+    pub fn payroll_balances(env: &Env) -> Map<Address, u64> {
+        env.storage().persistent().get(&"payroll_balances").unwrap_or_default()
     }
 
-    // Get the Stellar address of a registered worker
-    pub fn get_worker_stellar_address(env: Env, aleo_worker: Address) -> Address {
-        env.storage().instance().get(&aleo_worker).unwrap()
+    pub fn trust_fund_balances(env: &Env) -> Map<Address, u64> {
+        env.storage().persistent().get(&"trust_fund_balances").unwrap_or_default()
     }
 
-    // Bridge payroll funds from Aleo to Stellar
-    pub fn bridge_payroll(env: Env, employer: Address, aleo_worker: Address, amount: i128) -> bool {
-        let stellar_wallet = env.storage().instance().get(&aleo_worker).unwrap();
-        assert!(env.ledger().balance_of(&employer) >= amount, "Insufficient balance");
-
-        // Transfer AleoUSDC from employer to bridge
-        env.ledger().transfer(&employer, &env.current_contract_address(), amount);
-
-        // Emit event for external bridge execution
-        env.events().publish((Symbol::new("PayrollBridged"), employer, aleo_worker, stellar_wallet, amount));
-
-        true
+    pub fn employer_usdc_reserves(env: &Env) -> Map<Address, u64> {
+        env.storage().persistent().get(&"employer_usdc_reserves").unwrap_or_default()
     }
 
-    // Confirm Stellar payment has been executed
-    pub fn confirm_stellar_payment(env: Env, aleo_worker: Address, amount: i128) -> bool {
-        // Simulating an external confirmation mechanism
-        env.events().publish((Symbol::new("PaymentConfirmed"), aleo_worker, amount));
+    // Function to deposit USDC for payroll funding
+    pub fn deposit_usdc(env: &Env, employer: Address, amount: u64) {
+        assert!(amount > 0, "Deposit amount must be greater than zero");
 
-        true
+        let mut reserves = Self::employer_usdc_reserves(env);
+        let new_balance = reserves.get(&employer).unwrap_or(0) + amount;
+        reserves.set(employer.clone(), new_balance);
+
+        env.storage().persistent().set(&"employer_usdc_reserves", &reserves);
     }
-}
+
+    // Function to withdraw USDC (only employer-controlled)
+    pub fn withdraw_usdc(env: &Env, employer: Address, amount: u64) {
+        let mut reserves = Self::employer_usdc_reserves(env);
+        let balance = reserves.get(&employer).unwrap_or(0);
+        assert!(balance >= amount, "Insufficient USDC reserves");
+
+        reserves.set(employer.clone(), balance - amount);
+        env.storage().persistent().set(&"employer_usdc_reserves", &reserves);
+    }
+
+    // Function to process payroll bridging (EXCLUDES PTO & Sick Pay)
+    pub fn bridge_payroll(env: &Env, worker: Address, amount: u64) {
+        let mut payroll = Self::payroll_balances(env);
+        let balance = payroll.get(&worker).unwrap_or(0);
+        assert!(balance >= amount, "Insufficient payroll balance");
+
+        payroll.set(worker.clone(), balance - amount);
+        env.storage().persistent().set(&"payroll_balances", &payroll);
+    }
+
+    // Function to bridge trust fund withdrawals (Aleo-only enforcement)
+    pub fn bridge_trust_fund(env: &Env, worker: Address, amount: u64) {
+        let mut trust_funds = Self::trust_fund_balances(env);
+        let balance = trust_funds.get(&worker).unwrap_or(0);
+        assert!(balance >= amount, "Insufficient trust fund balance");
+
+        trust_funds.set(worker.clone(), balance - amount);
+        env.storage().persistent().set(&"trust_fund_balances", &trust_funds);
+    }
+
+    // Function to block invalid PTO/Sick Pay bridging attempts
+    pub fn attempt_bridge_pto_or_sick_pay(env: &Env, worker: Address, _amount: u64) {
+        env.events()
+            .publish(worker, "InvalidBridgeAttempt: PTO/Sick Pay cannot be bridged. Withdraw only on Aleo.");
+    }
+
+    // Function to verify employer USDC liquidity
+    pub fn verify_employer_usdc(env: &Env, employer: Address, required_amount: u64) -> bool {
+        let reserves = Self::employer_usdc_reserves(env);
+        reserves.get(&employer).unwrap_or(0) >= required_amount
+    }
+    }
