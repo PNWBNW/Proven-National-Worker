@@ -1,103 +1,114 @@
-// zk_verifier.leo
+program zk_verifier.aleo;
 
-import 0x01::worker_identity;
-import 0x01::merkle_helper; // For Merkle tree verification
-import 0x01::subdao_citizen_payroll; // For SubDAO payroll integration
+mapping worker_merkle_root: mapping(address, u64); // Stores Merkle root for each verified worker
+mapping employer_merkle_root: mapping(address, u64); // Stores Merkle root for each verified employer
+mapping payroll_proofs: mapping(address, u64); // Stores payroll ZK proofs for workers
+mapping trust_fund_proofs: mapping(address, u64); // Stores trust fund ZK proofs for workers
+mapping compliance_proofs: mapping(address, u64); // Stores compliance proofs for employers
+mapping farm_rewards: mapping(address, u64); // Tracks farm rewards for audit participation
 
-// Function to generate and verify ZK proof for worker payroll
-public fun generate_zk_proof(worker_id: u64, amount: u64): string {
-    let worker = borrow_global<worker_identity::Worker>(worker_id);
-    assert(worker.verified, 0); // Ensure the worker is verified
+constant FARM_REWARD_PERCENTAGE: u64 = 25; // Farms receive 25% of network fees when used for an audit
 
-    // Generate the ZK proof for this worker's payroll based on the amount
-    let proof = merkle_helper::generate_zk_proof(worker_id, amount);
-    return proof;
+// Struct for tracking zero-knowledge verification records
+struct ZKVerification {
+    entity_address: address,
+    merkle_root: u64,
+    zk_proof: u64,
 }
 
-// Function to verify the ZK proof before executing payroll
-public fun verify_zk_proof(proof: string, worker_id: u64, amount: u64): bool {
-    let worker = borrow_global<worker_identity::Worker>(worker_id);
-    assert(worker.verified, 0); // Ensure the worker is verified
-
-    // Verify the ZK proof using Merkle tree validation
-    let is_valid = merkle_helper::verify_zk_proof(proof, worker_id, amount);
-    return is_valid;
+// Function to register a worker's Merkle root for verification
+function register_worker_merkle(worker: address, merkle_root: u64) {
+    ensure!(worker_merkle_root[worker] == 0, "Worker Merkle root already exists");
+    worker_merkle_root[worker] = merkle_root;
 }
 
-// Function to validate worker's payroll data before payout
-public fun validate_worker_payroll(worker_id: u64, amount: u64): bool {
-    let worker = borrow_global<worker_identity::Worker>(worker_id);
-    
-    if (worker.verified) {
-        // Generate ZK proof for payroll verification
-        let proof = generate_zk_proof(worker_id, amount);
-        
-        // Verify ZK proof for payroll execution
-        let is_verified = verify_zk_proof(proof, worker_id, amount);
-        if (is_verified) {
-            return true;
-        } else {
-            return false;
-        }
-    } else {
-        return false; // Worker not verified
-    }
+// Function to register an employer's Merkle root for compliance verification
+function register_employer_merkle(employer: address, merkle_root: u64) {
+    ensure!(employer_merkle_root[employer] == 0, "Employer Merkle root already exists");
+    employer_merkle_root[employer] = merkle_root;
 }
 
-// Function to validate entire SubDAO payroll using ZK proof
-public fun validate_subdao_payroll(subdao_id: u64): bool {
-    let subdao = borrow_global<subdao_citizen_payroll::SubDAO>(subdao_id);
-    
-    // Iterate over all SubDAO workers to validate each worker's payroll
-    let mut all_verified = true;
-    for (worker_id in subdao.members) {
-        let worker = borrow_global<worker_identity::Worker>(worker_id);
-        let amount = subdao.payroll / vector::length(&subdao.members);
-        
-        let proof_is_valid = validate_worker_payroll(worker_id, amount);
-        
-        if (!proof_is_valid) {
-            all_verified = false;
-            break;
-        }
-    }
-    
-    return all_verified;
+// Function to verify a worker's identity using Merkle proof
+function verify_worker_merkle(worker: address, provided_merkle_root: u64, farm: address) -> bool {
+    let stored_root = worker_merkle_root[worker];
+    ensure!(stored_root == provided_merkle_root, "Worker Merkle proof does not match");
+
+    let reward = get_network_fee() * FARM_REWARD_PERCENTAGE / 100;
+    farm_rewards[farm] += reward;
+
+    return true;
 }
 
-// Function to process payroll for verified SubDAO members after ZK validation
-public fun process_subdao_payroll_after_zk(subdao_id: u64) {
-    let subdao = borrow_global_mut<subdao_citizen_payroll::SubDAO>(subdao_id);
-    
-    if (validate_subdao_payroll(subdao_id)) {
-        // Process payroll for all verified workers in SubDAO
-        let amount_per_worker = subdao.payroll / vector::length(&subdao.members);
-        
-        for (worker_id in subdao.members) {
-            worker_identity::send_payment(worker_id, amount_per_worker);  // Assuming `send_payment` exists
-        }
-        
-        subdao.payroll = 0;  // Reset SubDAO payroll after execution
-    } else {
-        // If ZK validation fails, log error or handle denial process
-        eprintln("ZK proof validation failed. Payroll not processed.");
-    }
+// Function to verify employer compliance using Merkle proof
+function verify_employer_merkle(employer: address, provided_merkle_root: u64, farm: address) -> bool {
+    let stored_root = employer_merkle_root[employer];
+    ensure!(stored_root == provided_merkle_root, "Employer Merkle proof does not match");
+
+    let reward = get_network_fee() * FARM_REWARD_PERCENTAGE / 100;
+    farm_rewards[farm] += reward;
+
+    return true;
 }
 
-// Function to execute farm investment payout after ZK validation
-public fun process_farm_investment_payout_with_zk(subdao_id: u64) {
-    let subdao = borrow_global_mut<subdao_citizen_payroll::SubDAO>(subdao_id);
-    
-    if (validate_subdao_payroll(subdao_id)) {
-        let payout_amount = subdao.farm_investment_payout / vector::length(&subdao.members);
-        
-        for (worker_id in subdao.members) {
-            worker_identity::send_payment(worker_id, payout_amount);  // Assuming `send_payment` exists
-        }
-        
-        subdao.farm_investment_payout = 0;  // Reset farm investment payout after processing
-    } else {
-        // If ZK validation fails, log error or handle denial process
-        eprintln("ZK proof validation failed. Farm investment payout not processed.");
-    }
+// Function to submit payroll zero-knowledge proof
+function submit_payroll_proof(worker: address, zk_proof: u64) {
+    ensure!(payroll_proofs[worker] == 0, "Payroll proof already exists for this worker");
+    payroll_proofs[worker] = zk_proof;
+}
+
+// Function to submit trust fund zero-knowledge proof
+function submit_trust_fund_proof(worker: address, zk_proof: u64) {
+    ensure!(trust_fund_proofs[worker] == 0, "Trust fund proof already exists for this worker");
+    trust_fund_proofs[worker] = zk_proof;
+}
+
+// Function to verify payroll compliance via ZK proof
+function verify_payroll_proof(worker: address, provided_proof: u64) -> bool {
+    let stored_proof = payroll_proofs[worker];
+    ensure!(stored_proof == provided_proof, "Payroll ZK proof does not match");
+    return true;
+}
+
+// Function to verify trust fund compliance via ZK proof
+function verify_trust_fund_proof(worker: address, provided_proof: u64) -> bool {
+    let stored_proof = trust_fund_proofs[worker];
+    ensure!(stored_proof == provided_proof, "Trust fund ZK proof does not match");
+    return true;
+}
+
+// Function to verify employer compliance via ZK proof
+function verify_compliance_proof(employer: address, provided_proof: u64) -> bool {
+    let stored_proof = compliance_proofs[employer];
+    ensure!(stored_proof == provided_proof, "Compliance ZK proof does not match");
+    return true;
+}
+
+// Utility function to check if a worker has a registered Merkle root
+function is_worker_merkle_registered(worker: address) -> bool {
+    return worker_merkle_root[worker] != 0;
+}
+
+// Utility function to check if an employer has a registered Merkle root
+function is_employer_merkle_registered(employer: address) -> bool {
+    return employer_merkle_root[employer] != 0;
+}
+
+// Utility function to retrieve a worker's payroll proof
+function get_worker_payroll_proof(worker: address) -> u64 {
+    return payroll_proofs[worker];
+}
+
+// Utility function to retrieve a worker's trust fund proof
+function get_worker_trust_fund_proof(worker: address) -> u64 {
+    return trust_fund_proofs[worker];
+}
+
+// Utility function to retrieve an employer's compliance proof
+function get_employer_compliance_proof(employer: address) -> u64 {
+    return compliance_proofs[employer];
+}
+
+// Function to get the current network fee
+function get_network_fee() -> u64 {
+    return env::network_fee();
 }
