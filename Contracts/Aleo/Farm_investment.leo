@@ -1,4 +1,4 @@
-program farm_investment.leo;
+program farm_investment.aleo;
 
 mapping worker_farm_investment: mapping(address, u64);  // Tracks each worker's farm investment amount
 mapping worker_category: mapping(address, string);  // Worker category classification (from worker_identity)
@@ -8,6 +8,7 @@ mapping employer_farm_limits: mapping(address, u64);  // Tracks employer-set far
 mapping farm_certifications: mapping(address, string);  // Tracks farm certifications (e.g., USDA Organic)
 mapping farm_merkle_proof: mapping(address, u64);  // Stores Merkle proof for farm investment compliance
 mapping worker_withdrawable_funds: mapping(address, u64); // Tracks available worker investment withdrawals
+mapping worker_nft_holdings: mapping(address, u64); // Tracks NFT-minted farm investments for workers
 
 constant AGRICULTURE_CATEGORY: string = "Agricultural"; // Required category for farm investments
 
@@ -43,20 +44,16 @@ function withdraw_farm_investment(worker: address, amount: u64) {
     worker_withdrawable_funds[worker] += amount;
 }
 
-// Function to allow workers to reinvest directly from their withdrawal balance
-function reinvest_farm_withdrawal(worker: address, farm: address, amount: u64) {
-    ensure!(worker_verified[worker] == true, "Worker must be verified");
-    ensure!(worker_zpass_verified[worker] == true, "Worker must have ZPass verification");
-    ensure!(worker_category[worker] == AGRICULTURE_CATEGORY, "Only Agricultural workers can reinvest in farms");
-    ensure!(worker_withdrawable_funds[worker] >= amount, "Insufficient withdrawal balance for reinvestment");
+// Function to convert an investment into an RWA NFT instead of withdrawal
+function convert_investment_to_nft(worker: address, farm: address, nft_id: u64) {
+    let balance = worker_farm_investment[worker];
+    ensure!(balance > 0, "No active investment to convert to NFT");
 
-    let employer = get_farm_employer(farm);
-    let max_limit = employer_farm_limits[employer];
+    worker_farm_investment[worker] = 0;
+    worker_nft_holdings[worker] = nft_id;
 
-    ensure!(amount <= max_limit, "Investment exceeds employer-set limit");
-
-    worker_withdrawable_funds[worker] -= amount;
-    worker_farm_investment[worker] += amount;
+    // Calls `rwa_nft.leo` to mint the NFT on behalf of the worker
+    call rwa_nft.aleo.mint_rwa_nft(farm, worker, nft_id, "Farm Investment NFT");
 }
 
 // Function to register a farm certification (e.g., USDA Organic)
