@@ -1,85 +1,59 @@
-// pncw_trust_pool.leo
+program pncw_trust_pool.leo;
 
-import 0x01::pncw_payroll;
-import 0x01::payroll;
-import 0x01::worker_identity;
-import 0x01::zk_verifier;
-import 0x01::aleo_usdc;
-import 0x01::kyc_verification;
+mapping worker_balances:
+    key address as field;
+    value u64 as field;
 
-// Structure to track PNcW trust pool contributions
-struct PNcWTrustPool has store {
-    worker_id: u64,
-    total_contributed: u64,
-    last_contribution_timestamp: u64,
+mapping last_withdrawal:
+    key address as field;
+    value u64 as field; // Stores timestamp of last withdrawal
+
+mapping worker_children:
+    key address as field;
+    value address as field; // Child beneficiary
+
+function deposit_trust_fund(public worker: address, public amount: u64) -> bool {
+    let current_balance = worker_balances.get_or_use(worker, 0u64);
+    worker_balances.insert(worker, current_balance + amount);
+    return true;
 }
 
-// Mapping for storing worker trust pool balances
-mapping pncw_trust_pool: u64 -> PNcWTrustPool;
+function register_beneficiary(public worker: address, public child: address) -> bool {
+    worker_children.insert(worker, child);
+    return true;
+}
 
-// Function to contribute payroll funds to the PNcW trust pool
-public fun contribute_to_trust_pool(worker_id: u64, contribution_amount: u64) -> bool {
-    assert!(worker_identity::is_verified_worker(worker_id), 0);
-    assert!(contribution_amount > 0, 0);
+function withdraw_funds(public worker: address, public amount: u64, public current_time: u64) -> bool {
+    let last_time = last_withdrawal.get_or_use(worker, 0u64);
+    ensure(current_time >= last_time + 2592000u64, "Withdrawals allowed only once per month");
 
-    let mut trust_record = match pncw_trust_pool.contains(worker_id) {
-        true => pncw_trust_pool[worker_id],
-        false => PNcWTrustPool {
-            worker_id: worker_id,
-            total_contributed: 0,
-            last_contribution_timestamp: 0,
-        },
-    };
+    let current_balance = worker_balances.get_or_use(worker, 0u64);
+    ensure(current_balance >= amount, "Insufficient balance");
 
-    trust_record.total_contributed += contribution_amount;
-    trust_record.last_contribution_timestamp = timestamp();
-    pncw_trust_pool[worker_id] = trust_record;
+    worker_balances.insert(worker, current_balance - amount);
+    last_withdrawal.insert(worker, current_time);
 
     return true;
 }
 
-// Function to check worker trust pool balance
-public fun get_trust_pool_balance(worker_id: u64) -> u64 {
-    let trust_record = pncw_trust_pool[worker_id];
-    return trust_record.total_contributed;
+function claim_funds_as_child(public child: address, public worker: address, public age: u64) -> bool {
+    ensure(worker_children.get_or_use(worker, 0address) == child, "Not the registered beneficiary");
+    ensure(age >= 18u64, "Child must be at least 18 years old to claim funds");
+
+    let balance = worker_balances.get_or_use(worker, 0u64);
+    worker_balances.insert(worker, 0u64);
+
+    return true;
 }
 
-// Function to allow children to redeem funds after turning 18 with KYC
-public fun redeem_funds(child_id: u64, worker_id: u64, withdrawal_amount: u64) -> bool {
-    let verified = kyc_verification::verify_age(child_id, 18);
-    assert!(verified, 0); // Ensure child is 18 or older
-
-    let mut trust_record = pncw_trust_pool[worker_id];
-    assert!(trust_record.total_contributed >= withdrawal_amount, 0);
-    assert!(withdrawal_amount > 0, 0);
-
-    let success = aleo_usdc::transfer(child_id, withdrawal_amount);
-    assert!(success, 0); // Ensure transfer succeeds
-
-    trust_record.total_contributed -= withdrawal_amount;
-    pncw_trust_pool[worker_id] = trust_record;
-
-    return success;
+function get_worker_balance(public worker: address) -> u64 {
+    return worker_balances.get_or_use(worker, 0u64);
 }
 
-// Function to allow partial withdrawal before 18 with approval from 3 other workers
-public fun request_partial_withdrawal(worker_id: u64, withdrawal_amount: u64, approver1: u64, approver2: u64, approver3: u64) -> bool {
-    assert!(worker_identity::is_verified_worker(approver1), 0);
-    assert!(worker_identity::is_verified_worker(approver2), 0);
-    assert!(worker_identity::is_verified_worker(approver3), 0);
+function get_worker_beneficiary(public worker: address) -> address {
+    return worker_children.get_or_use(worker, 0address);
+}
 
-    let mut trust_record = pncw_trust_pool[worker_id];
-    assert!(trust_record.total_contributed >= withdrawal_amount, 0);
-    assert!(withdrawal_amount > 0, 0);
-
-    let approved = zk_verifier::verify_signatures(worker_id, [approver1, approver2, approver3]);
-    assert!(approved, 0); // Ensure three workers approve the withdrawal
-
-    let success = aleo_usdc::transfer(worker_id, withdrawal_amount);
-    assert!(success, 0); // Ensure transfer succeeds
-
-    trust_record.total_contributed -= withdrawal_amount;
-    pncw_trust_pool[worker_id] = trust_record;
-
-    return success;
+function get_last_withdrawal(public worker: address) -> u64 {
+    return last_withdrawal.get_or_use(worker, 0u64);
 }
