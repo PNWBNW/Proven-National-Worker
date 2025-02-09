@@ -1,64 +1,55 @@
-// pragma solidity ^0.8.20;
+//
+pragma solidity 0.8.20;
 
-interface IAleoBridge {
-    function bridgePayroll(address employer, address evmWorker, uint256 amount) external returns (bool);
-}
+contract PNWBridgePayroll {
+    mapping(address => uint256) public payrollBalances;
+    mapping(address => uint256) public trustFundBalances;
+    mapping(address => uint256) public employerUSDCReserves;
 
-contract PNWPayrollBridge {
-    IAleoBridge public aleoBridge;
-
-    struct Employer {
-        address employerAddress;
-        uint256 prepaidWages;
-        uint256 prepaidTaxes;
-        bool isCompliant;
+    event PayrollBridged(address indexed worker, uint256 amount);
+    event TrustFundBridged(address indexed worker, uint256 amount);
+    event EmployerUSDCDeposited(address indexed employer, uint256 amount);
+    event EmployerUSDCWithdrawn(address indexed employer, uint256 amount);
+    event InvalidBridgeAttempt(address indexed worker, string reason);
+    
+    // Function to deposit USDC for payroll funding
+    function depositUSDC(address employer, uint256 amount) external {
+        require(amount > 0, "Deposit amount must be greater than zero");
+        employerUSDCReserves[employer] += amount;
+        emit EmployerUSDCDeposited(employer, amount);
     }
 
-    struct Payroll {
-        address worker;
-        uint256 amount;
-        bool processed;
+    // Function to withdraw USDC (only employer-controlled)
+    function withdrawUSDC(address employer, uint256 amount) external {
+        require(employerUSDCReserves[employer] >= amount, "Insufficient USDC reserves");
+        employerUSDCReserves[employer] -= amount;
+        emit EmployerUSDCWithdrawn(employer, amount);
     }
 
-    mapping(address => Employer) public employers;
-    mapping(address => Payroll[]) public payrolls;
-    mapping(address => bool) public restrictedEmployers;
-    mapping(address => address) public workerEVMWallets; // Maps Aleo workers to EVM wallets
+    // Function to process payroll bridging (EXCLUDES PTO & Sick Pay)
+    function bridgePayroll(address worker, uint256 amount) external {
+        require(payrollBalances[worker] >= amount, "Insufficient payroll balance");
+        payrollBalances[worker] -= amount;
 
-    event PayrollProcessed(address indexed employer, address indexed worker, uint256 amount, bool success);
-    event WorkerEVMWalletRegistered(address indexed worker, address indexed evmWallet);
-
-    constructor(address _aleoBridge) {
-        aleoBridge = IAleoBridge(_aleoBridge);
+        // PTO & Sick Pay cannot be bridged (Aleo-only enforcement)
+        emit PayrollBridged(worker, amount);
     }
 
-    function registerWorkerEVMWallet(address evmWallet) external {
-        workerEVMWallets[msg.sender] = evmWallet;
-        emit WorkerEVMWalletRegistered(msg.sender, evmWallet);
+    // Function to bridge trust fund withdrawals (Aleo-only enforcement)
+    function bridgeTrustFund(address worker, uint256 amount) external {
+        require(trustFundBalances[worker] >= amount, "Insufficient trust fund balance");
+        trustFundBalances[worker] -= amount;
+
+        emit TrustFundBridged(worker, amount);
     }
 
-    function processPayroll(address employer, address worker, uint256 amount) external {
-        require(employers[employer].prepaidWages >= amount, "Insufficient employer balance");
-        require(employers[employer].isCompliant, "Employer non-compliant");
-
-        address evmWallet = workerEVMWallets[worker];
-        require(evmWallet != address(0), "Worker has not registered an EVM wallet");
-
-        employers[employer].prepaidWages -= amount;
-        payrolls[worker].push(Payroll(worker, amount, true));
-
-        // Directly bridge Aleo payroll funds to the worker's EVM wallet
-        require(aleoBridge.bridgePayroll(employer, evmWallet, amount), "Aleo-EVM bridge failed");
-
-        emit PayrollProcessed(employer, worker, amount, true);
+    // Function to block invalid PTO/Sick Pay bridging attempts
+    function attemptBridgePTOorSickPay(address worker, uint256 amount) external {
+        emit InvalidBridgeAttempt(worker, "PTO/Sick Pay cannot be bridged. Withdraw only on Aleo.");
     }
 
-    function getWorkerEVMWallet(address worker) external view returns (address) {
-        return workerEVMWallets[worker];
-    }
-
-    function getLastPayroll(address worker) external view returns (Payroll memory) {
-        require(payrolls[worker].length > 0, "No payroll history found");
-        return payrolls[worker][payrolls[worker].length - 1];
+    // Function to verify employer USDC liquidity
+    function verifyEmployerUSDC(address employer, uint256 requiredAmount) external view returns (bool) {
+        return employerUSDCReserves[employer] >= requiredAmount;
     }
 }
