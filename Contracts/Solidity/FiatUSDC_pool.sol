@@ -25,26 +25,16 @@ contract FiatUSDCPool {
             employerPools[msg.sender].fiatUSDCbalance += _amount;
             emit FiatUSDCUpdated(1, msg.sender, _amount);
         } 
-        else if (actionType == 2) { // Withdraw Fiat USDC (Payroll or Other)
-            require(employerPools[_employer].fiatUSDCbalance >= _amount, "Insufficient Fiat USDC balance");
-            employerPools[_employer].fiatUSDCbalance -= _amount;
-            emit FiatUSDCUpdated(2, _employer, _amount);
-        } 
-        else if (actionType == 3) { // Deposit AleoUSDC
+        else if (actionType == 2) { // Deposit AleoUSDC
             require(_amount > 0, "Deposit must be greater than zero");
             employerPools[msg.sender].aleoUSDCbalance += _amount;
             emit AleoUSDCUpdated(msg.sender, _amount);
         } 
-        else if (actionType == 4) { // Withdraw AleoUSDC for Payroll Offset
-            require(employerPools[_employer].aleoUSDCbalance >= _amount, "Insufficient AleoUSDC balance");
-            employerPools[_employer].aleoUSDCbalance -= _amount;
-            emit AleoUSDCUpdated(_employer, _amount);
-        } 
-        else if (actionType == 5) { // Restrict Employer
+        else if (actionType == 3) { // Restrict Employer
             restrictedEmployers[_employer] = true;
             emit EmployerRestricted(_employer);
         } 
-        else if (actionType == 6) { // Reinstate Employer
+        else if (actionType == 4) { // Reinstate Employer
             require(restrictedEmployers[_employer], "Employer is not restricted");
             restrictedEmployers[_employer] = false;
             emit EmployerReinstated(_employer);
@@ -52,6 +42,13 @@ contract FiatUSDCPool {
         else {
             revert("Invalid action type");
         }
+    }
+
+    function withdrawForPayroll(address _employer, uint256 _amount) external returns (bool) {
+        require(employerPools[_employer].fiatUSDCbalance >= _amount, "Insufficient Fiat USDC balance");
+        employerPools[_employer].fiatUSDCbalance -= _amount;
+        emit FiatUSDCUpdated(2, _employer, _amount);
+        return true;
     }
 
     function fiatPoolQueries(uint8 queryType, address _employer) external view returns (uint256, uint256, bool) {
