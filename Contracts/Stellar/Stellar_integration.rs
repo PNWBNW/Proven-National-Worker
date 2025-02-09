@@ -1,91 +1,41 @@
-#![no_std]
+// Stellar Integration for Direct Aleo → Stellar Payroll Transfers
 
-use soroban_sdk::{contract, contractimpl, Env, Address, BytesN, Map};
+use soroban_sdk::{contract, contractimpl, Address, Env, Symbol};
 
 #[contract]
-pub struct StellarIntegrationContract;
-
-#[derive(Clone)]
-pub struct WorkerPayment {
-    worker: Address,
-    employer: Address,
-    amount: u64,
-    processed: bool,
-    timestamp: u64,
-}
+pub struct StellarBridge;
 
 #[contractimpl]
-impl StellarIntegrationContract {
-    // Assign payroll to a worker
-    pub fn assign_payroll(env: Env, worker: Address, employer: Address, amount: u64) -> bool {
-        assert!(amount > 0, "Payroll amount must be greater than zero");
+impl StellarBridge {
+    // Mapping: Aleo Worker Address → Stellar Wallet Address
+    pub fn register_worker(env: Env, aleo_worker: Address, stellar_wallet: Address) {
+        env.storage().instance().set(&aleo_worker, &stellar_wallet);
+    }
 
-        let mut payments: Map<Address, WorkerPayment> = env.storage().persistent().get().unwrap_or_default();
-        payments.set(worker.clone(), WorkerPayment {
-            worker: worker.clone(),
-            employer: employer.clone(),
-            amount,
-            processed: false,
-            timestamp: env.ledger().timestamp(),
-        });
+    // Get the Stellar address of a registered worker
+    pub fn get_worker_stellar_address(env: Env, aleo_worker: Address) -> Address {
+        env.storage().instance().get(&aleo_worker).unwrap()
+    }
 
-        env.storage().persistent().set(&payments);
+    // Bridge payroll funds from Aleo to Stellar
+    pub fn bridge_payroll(env: Env, employer: Address, aleo_worker: Address, amount: i128) -> bool {
+        let stellar_wallet = env.storage().instance().get(&aleo_worker).unwrap();
+        assert!(env.ledger().balance_of(&employer) >= amount, "Insufficient balance");
+
+        // Transfer AleoUSDC from employer to bridge
+        env.ledger().transfer(&employer, &env.current_contract_address(), amount);
+
+        // Emit event for external bridge execution
+        env.events().publish((Symbol::new("PayrollBridged"), employer, aleo_worker, stellar_wallet, amount));
+
         true
     }
 
-    // Verify worker payroll through ZK proof or integration with Aleo
-    pub fn verify_payroll(env: Env, worker: Address, zk_proof: BytesN<32>) -> bool {
-        // Placeholder for ZK verification (to be integrated with Aleo network)
-        let valid = StellarIntegrationContract::verify_aleopayroll(env.clone(), worker.clone(), zk_proof);
-        assert!(valid, "Invalid ZK proof");
+    // Confirm Stellar payment has been executed
+    pub fn confirm_stellar_payment(env: Env, aleo_worker: Address, amount: i128) -> bool {
+        // Simulating an external confirmation mechanism
+        env.events().publish((Symbol::new("PaymentConfirmed"), aleo_worker, amount));
 
         true
     }
-
-    // Placeholder to execute payroll payment on Stellar
-    pub fn execute_stellar_payment(env: Env, worker: Address, amount: u64) -> bool {
-        // Placeholder for actual fund transfer to Stellar network (implement Stellar SDK call)
-        true
-    }
-
-    // Verify payroll details using Aleo network (ZK proof verification)
-    pub fn verify_aleopayroll(env: Env, worker: Address, zk_proof: BytesN<32>) -> bool {
-        // Placeholder for verification logic
-        // Integrate with Aleo network for actual verification
-        true
-    }
-
-    // Process payroll for a worker (after ZK validation)
-    pub fn process_payroll(env: Env, worker: Address, zk_proof: BytesN<32>) -> bool {
-        // First verify ZK proof or Aleo validation
-        let valid = StellarIntegrationContract::verify_payroll(env.clone(), worker.clone(), zk_proof);
-        if !valid {
-            return false;
-        }
-
-        // Retrieve the worker payment record
-        let mut payments: Map<Address, WorkerPayment> = env.storage().persistent().get().unwrap_or_default();
-        let payment = payments.get(&worker).expect("Payment record not found");
-
-        // Ensure payroll has not been processed
-        assert!(!payment.processed, "Payroll already processed");
-
-        // Execute payment on Stellar
-        let success = StellarIntegrationContract::execute_stellar_payment(env.clone(), worker.clone(), payment.amount);
-        if success {
-            // Mark payroll as processed
-            let processed_payment = WorkerPayment {
-                worker: payment.worker.clone(),
-                employer: payment.employer.clone(),
-                amount: payment.amount,
-                processed: true,
-                timestamp: payment.timestamp,
-            };
-
-            payments.set(worker, processed_payment);
-            env.storage().persistent().set(&payments);
-        }
-
-        success
-    }
-    }
+}
