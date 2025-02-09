@@ -1,121 +1,92 @@
 program farm_investment.leo;
 
-/// **Struct: InvestmentRecord**
-/// - Stores individual worker investment details.
-struct InvestmentRecord {
-    owner: address,
-    amount: u64,
-    selected_option: u8,  // 1 = Sell, 2 = Reinvest, 3 = Donate, 4 = Trade
-    farm_type: u8         // Categorizes the investment
+mapping worker_farm_investment: mapping(address, u64);  // Tracks each worker's farm investment amount
+mapping worker_category: mapping(address, string);  // Worker category classification (from worker_identity)
+mapping worker_verified: mapping(address, bool);  // Worker verification status (from worker_identity)
+mapping worker_zpass_verified: mapping(address, bool); // Worker ZPass verification status (from worker_identity)
+mapping employer_farm_limits: mapping(address, u64);  // Tracks employer-set farm investment limits
+mapping farm_certifications: mapping(address, string);  // Tracks farm certifications (e.g., USDA Organic)
+mapping farm_merkle_proof: mapping(address, u64);  // Stores Merkle proof for farm investment compliance
+mapping worker_withdrawable_funds: mapping(address, u64); // Tracks available worker investment withdrawals
+
+constant AGRICULTURE_CATEGORY: string = "Agricultural"; // Required category for farm investments
+
+// Struct for tracking worker farm investments
+struct WorkerFarmInvestment {
+    worker_address: address,
+    investment_amount: u64,
+    farm: address,
+    employer: address,
 }
 
-/// **Mappings**
-mapping investment_ledger: address => InvestmentRecord;  // Tracks investments per worker
-mapping total_option_votes: u8 => u64;  // Tracks votes per investment option
-mapping total_investments: u8 => u64;  // Tracks total investment per option
-mapping farm_type_totals: u8 => u64;  // Tracks total investment per farm type
+// Function to allow workers to invest in a farm (Agricultural workers only)
+function invest_in_farm(worker: address, farm: address, amount: u64) {
+    ensure!(worker_verified[worker] == true, "Worker must be verified");
+    ensure!(worker_zpass_verified[worker] == true, "Worker must have ZPass verification");
+    ensure!(worker_category[worker] == AGRICULTURE_CATEGORY, "Only Agricultural workers can invest in farms");
+    ensure!(amount > 0, "Investment amount must be greater than zero");
 
-/// **Function: register_investment**
-/// - Allows a worker to register an investment.
-/// - Enforces farm type, certification, and payroll compliance.
-function register_investment(employer: address, amount: u64, selected_option: u8, farm_type: u8) -> bool {
-    let worker: address = caller();
+    let employer = get_farm_employer(farm);
+    let max_limit = employer_farm_limits[employer];
 
-    // **Step 1: Validate Inputs**
-    assert!(selected_option >= 1 && selected_option <= 4, "Invalid investment option.");
-    assert!(farm_type >= 1 && farm_type <= 12, "Invalid farm type.");
+    ensure!(amount <= max_limit, "Investment exceeds employer-set limit");
 
-    // **Step 2: Enforce Compliance Rules**
-    assert!(compliance_tracking::verify_farm_type(employer, farm_type), "Farm type not allowed.");
-    assert!(compliance_tracking::verify_certification(employer, farm_type), "Certification not verified.");
-    assert!(compliance_tracking::check_worker_investment_cap(employer, amount), "Investment limit exceeded.");
-    assert!(compliance_tracking::check_payroll_compliance(employer), "Employer has unpaid payroll obligations.");
+    worker_farm_investment[worker] = amount;
+}
 
-    // **Step 3: Log Investment**
-    let record = InvestmentRecord { owner: worker, amount, selected_option, farm_type };
-    investment_ledger[worker] = record;
+// Function to allow workers to withdraw their farm investments (based on rules)
+function withdraw_farm_investment(worker: address, amount: u64) {
+    let balance = worker_farm_investment[worker];
+    ensure!(balance >= amount, "Insufficient investment balance");
 
-    total_option_votes[selected_option] += 1;
-    total_investments[selected_option] += amount;
-    farm_type_totals[farm_type] += amount;
+    worker_farm_investment[worker] -= amount;
+    worker_withdrawable_funds[worker] += amount;
+}
 
-    // **Step 4: Record Worker Investment**
-    assert!(compliance_tracking::record_worker_investment(employer, amount), "Investment tracking failed.");
+// Function to allow workers to reinvest directly from their withdrawal balance
+function reinvest_farm_withdrawal(worker: address, farm: address, amount: u64) {
+    ensure!(worker_verified[worker] == true, "Worker must be verified");
+    ensure!(worker_zpass_verified[worker] == true, "Worker must have ZPass verification");
+    ensure!(worker_category[worker] == AGRICULTURE_CATEGORY, "Only Agricultural workers can reinvest in farms");
+    ensure!(worker_withdrawable_funds[worker] >= amount, "Insufficient withdrawal balance for reinvestment");
 
+    let employer = get_farm_employer(farm);
+    let max_limit = employer_farm_limits[employer];
+
+    ensure!(amount <= max_limit, "Investment exceeds employer-set limit");
+
+    worker_withdrawable_funds[worker] -= amount;
+    worker_farm_investment[worker] += amount;
+}
+
+// Function to register a farm certification (e.g., USDA Organic)
+function register_farm_certification(farm: address, certification: string) {
+    farm_certifications[farm] = certification;
+}
+
+// Function to verify farm investment compliance using Merkle proof
+function verify_farm_merkle(farm: address, provided_merkle_root: u64) -> bool {
+    let stored_root = farm_merkle_proof[farm];
+    ensure!(stored_root == provided_merkle_root, "Farm Merkle proof does not match");
     return true;
 }
 
-/// **Function: finalize_investments**
-/// - Processes roll-up voting and distributes investments at harvest/work cycle completion.
-function finalize_investments() -> bool {
-    let total_votes: u64 = total_option_votes[1] + total_option_votes[2] + total_option_votes[3] + total_option_votes[4];
-    assert!(total_votes > 0, "No investments to finalize.");
-
-    for option_id in [1, 2, 3, 4] {
-        let total_amount = total_investments[option_id];
-        
-        if total_amount > 0 {
-            distribute_payouts(option_id, total_amount);
-        }
-    }
-
-    reset_investments();
-    
-    return true;
+// Function to get a worker's current farm investment
+function get_worker_farm_investment(worker: address) -> u64 {
+    return worker_farm_investment[worker];
 }
 
-/// **Function: claim_product_rights**
-/// - If an employer has unpaid payroll, workers can claim product rights instead of investment payouts.
-function claim_product_rights(worker: address, employer: address, unpaid_amount: u64) -> bool {
-    let available_products: u64 = get_farm_product_value(employer);
-    assert!(available_products >= unpaid_amount, "Insufficient product value to cover payroll debt.");
-
-    allocate_product_rights(worker, employer, unpaid_amount);
-    return true;
+// Function to get an employer's farm investment limit
+function get_employer_farm_limit(employer: address) -> u64 {
+    return employer_farm_limits[employer];
 }
 
-/// **Helper Function: distribute_payouts**
-/// - Distributes investment returns based on selected options and farm type.
-function distribute_payouts(option_id: u8, total_amount: u64) -> bool {
-    for (worker, record) in investment_ledger {
-        if record.selected_option == option_id {
-            let proportional_share: u64 = (record.amount * total_amount) / total_investments[option_id];
-            process_payout(worker, option_id, record.farm_type, proportional_share);
-        }
-    }
-    return true;
+// Function to get a farm's certification
+function get_farm_certification(farm: address) -> string {
+    return farm_certifications[farm];
 }
 
-/// **Helper Function: process_payout**
-/// - Handles the actual payout (sell, reinvest, donate, trade).
-/// - Associates payouts with farm type for tracking.
-function process_payout(worker: address, option_id: u8, farm_type: u8, amount: u64) -> bool {
-    match option_id {
-        1 => payout_usdc(worker, amount, farm_type),  // Sell for USDC
-        2 => reinvest(worker, amount, farm_type),     // Reinvest
-        3 => donate(worker, amount, farm_type),       // Donate to community reserves
-        4 => trade(worker, amount, farm_type),        // Trade for other farm products
-        _ => assert!(false, "Invalid payout option.")
-    }
-
-    return true;
-}
-
-/// **Helper Function: reset_investments**
-/// - Clears investment records after a harvest cycle.
-function reset_investments() -> bool {
-    for (worker, _) in investment_ledger {
-        delete investment_ledger[worker];
-    }
-
-    for option_id in [1, 2, 3, 4] {
-        total_option_votes[option_id] = 0;
-        total_investments[option_id] = 0;
-    }
-
-    for farm_type in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] {
-        farm_type_totals[farm_type] = 0;
-    }
-
-    return true;
+// Function to retrieve the employer managing a given farm
+function get_farm_employer(farm: address) -> address {
+    return env::get_associated_employer(farm);
 }
