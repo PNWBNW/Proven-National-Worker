@@ -1,4 +1,4 @@
-program farm_investment.aleo;
+program farm_investment.leo;
 
 /// **Struct: InvestmentRecord**
 /// - Stores individual worker investment details.
