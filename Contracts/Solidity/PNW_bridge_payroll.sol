@@ -1,109 +1,111 @@
-// SPDX-License-Identifier: Proprietary
-pragma solidity 0.8.20;
+//pragma solidity ^0.8.20
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-
-contract PNWBridgePayroll is Ownable, ReentrancyGuard {
-    IERC20 public usdcToken;
+contract PNWPayrollBridge {
+    struct Employer {
+        address employerAddress;
+        uint256 prepaidWages;
+        uint256 prepaidTaxes;
+        uint256 fiatUSDCpool;
+        uint256 aleoUSDCpool;
+        bool isCompliant;
+    }
 
     struct Payroll {
         address worker;
         uint256 amount;
         bool processed;
-    }
-
-    struct Employer {
-        address employerAddress;
-        uint256 totalDeposited;
-        uint256 taxPaid;
-        bool isCompliant;
+        bool usedFiatPool;
     }
 
     mapping(address => Employer) public employers;
-    mapping(address => Payroll) public payrolls;
-    address[] public payrollQueue;
+    mapping(address => Payroll[]) public payrolls;
+    mapping(address => bool) public restrictedEmployers;
 
-    event PayrollDeposited(address indexed employer, uint256 amount);
-    event PayrollProcessed(address indexed worker, uint256 amount);
+    event PayrollProcessed(uint8 actionType, address indexed employer, address indexed worker, uint256 amount, bool success, bool usedFiatPool);
     event EmployerComplianceUpdated(address indexed employer, bool isCompliant);
-    event TaxPaid(address indexed employer, uint256 amount);
-    event PayrollBatchProcessed(uint256 batchSize);
+    event FiatPoolFunded(address indexed employer, uint256 amount);
+    event AleoUSDCUsed(address indexed employer, uint256 amount);
 
-    modifier onlyCompliantEmployer() {
-        require(employers[msg.sender].isCompliant, "Employer is not compliant");
-        _;
-    }
+    function payrollManagement(
+        uint8 actionType, 
+        address _employer, 
+        address _worker, 
+        uint256 _amount, 
+        bool isRollup, 
+        bool isZPass
+    ) external {
+        if (actionType == 1) { // Process Payroll (Direct or Rollup)
+            require(employers[_employer].prepaidWages >= _amount, "Insufficient employer balance");
+            require(employers[_employer].isCompliant, "Employer non-compliant");
 
-    constructor(address _usdcToken) {
-        require(_usdcToken != address(0), "Invalid USDC token address");
-        usdcToken = IERC20(_usdcToken);
-    }
+            employers[_employer].prepaidWages -= _amount;
+            payrolls[_worker].push(Payroll(_worker, _amount, true, false));
 
-    function depositPayroll(uint256 amount) external nonReentrant {
-        require(amount > 0, "Deposit must be greater than zero");
-        require(usdcToken.transferFrom(msg.sender, address(this), amount), "Transfer failed");
+            emit PayrollProcessed(1, _employer, _worker, _amount, true, false);
+        } 
+        else if (actionType == 2) { // Withdraw from Fiat Pool (Pull AleoUSDC if Insufficient)
+            uint256 fee = isZPass ? (_amount * 1) / 100 : (_amount * 2) / 100;
+            uint256 finalPayout = _amount - fee;
 
-        employers[msg.sender].totalDeposited += amount;
-        emit PayrollDeposited(msg.sender, amount);
-    }
+            if (employers[_employer].fiatUSDCpool >= _amount) {
+                // Use Fiat Pool
+                employers[_employer].fiatUSDCpool -= _amount;
+                employers[_employer].fiatUSDCpool += fee; // Recycle fee into Fiat pool
+                emit PayrollProcessed(2, _employer, _worker, finalPayout, true, true);
+            } 
+            else {
+                // Insufficient Fiat Pool, pull from AleoUSDC
+                uint256 shortfall = _amount - employers[_employer].fiatUSDCpool;
+                require(employers[_employer].aleoUSDCpool >= shortfall, "Insufficient AleoUSDC to cover shortfall");
 
-    function assignPayroll(address worker, uint256 amount) external onlyCompliantEmployer {
-        require(worker != address(0), "Invalid worker address");
-        require(amount > 0, "Payroll amount must be greater than zero");
-        require(employers[msg.sender].totalDeposited >= amount, "Insufficient employer balance");
+                // Deduct from both pools
+                employers[_employer].aleoUSDCpool -= shortfall;
+                employers[_employer].fiatUSDCpool = 0; // Fully depleted
+                employers[_employer].fiatUSDCpool += fee; // Fee goes into Fiat pool
 
-        payrolls[worker] = Payroll(worker, amount, false);
-        payrollQueue.push(worker); // Add to rollup queue
-        employers[msg.sender].totalDeposited -= amount;
-    }
-
-    function processPayroll(address worker) external nonReentrant {
-        require(worker != address(0), "Invalid worker address");
-        Payroll storage payroll = payrolls[worker];
-        require(!payroll.processed, "Payroll already processed");
-
-        payroll.processed = true;
-        require(usdcToken.transfer(worker, payroll.amount), "Transfer failed");
-
-        emit PayrollProcessed(worker, payroll.amount);
-    }
-
-    function processPayrollBatch(uint256 batchSize) external nonReentrant {
-        require(batchSize > 0 && batchSize <= payrollQueue.length, "Invalid batch size");
-
-        for (uint256 i = 0; i < batchSize; i++) {
-            address worker = payrollQueue[i];
-            Payroll storage payroll = payrolls[worker];
-            if (!payroll.processed) {
-                payroll.processed = true;
-                usdcToken.transfer(worker, payroll.amount);
-                emit PayrollProcessed(worker, payroll.amount);
+                emit AleoUSDCUsed(_employer, shortfall);
+                emit PayrollProcessed(2, _employer, _worker, finalPayout, true, true);
             }
+        } 
+        else if (actionType == 3) { // Fund Fiat Pool
+            require(_amount > 0, "Deposit must be greater than zero");
+            employers[msg.sender].fiatUSDCpool += _amount;
+            emit FiatPoolFunded(msg.sender, _amount);
+        } 
+        else if (actionType == 4) { // Fund AleoUSDC Pool
+            require(_amount > 0, "Deposit must be greater than zero");
+            employers[msg.sender].aleoUSDCpool += _amount;
+            emit AleoUSDCUsed(msg.sender, _amount);
+        } 
+        else if (actionType == 5) { // Update Employer Compliance
+            require(employers[_employer].employerAddress != address(0), "Employer not found");
+            employers[_employer].isCompliant = true;
+            emit EmployerComplianceUpdated(_employer, true);
+        } 
+        else if (actionType == 6) { // Restrict Employer
+            require(employers[_employer].employerAddress != address(0), "Employer not found");
+            restrictedEmployers[_employer] = true;
+        } 
+        else if (actionType == 7) { // Reinstate Employer
+            require(restrictedEmployers[_employer], "Employer is not restricted");
+            restrictedEmployers[_employer] = false;
+        } 
+        else {
+            revert("Invalid action type");
         }
-
-        // Remove processed workers from queue
-        for (uint256 i = 0; i < batchSize; i++) {
-            payrollQueue[i] = payrollQueue[payrollQueue.length - 1];
-            payrollQueue.pop();
-        }
-
-        emit PayrollBatchProcessed(batchSize);
     }
 
-    function payTax(uint256 amount) external {
-        require(amount > 0, "Tax amount must be greater than zero");
-        require(usdcToken.transferFrom(msg.sender, address(this), amount), "Transfer failed");
-
-        employers[msg.sender].taxPaid += amount;
-        employers[msg.sender].isCompliant = true;
-
-        emit TaxPaid(msg.sender, amount);
-        emit EmployerComplianceUpdated(msg.sender, true);
-    }
-
-    function verifyEmployerCompliance(address employer) external view returns (bool) {
-        return employers[employer].isCompliant;
+    function payrollQueries(uint8 queryType, address _user) external view returns (uint256, uint256, bool, bool) {
+        if (queryType == 1) { // Get Last Payroll for Worker
+            require(payrolls[_user].length > 0, "No payroll history found");
+            Payroll memory latest = payrolls[_user][payrolls[_user].length - 1];
+            return (latest.amount, 0, latest.processed, latest.usedFiatPool);
+        } 
+        else if (queryType == 2) { // Get Employer Fiat & AleoUSDC Balances
+            return (employers[_user].fiatUSDCpool, employers[_user].aleoUSDCpool, employers[_user].isCompliant, false);
+        } 
+        else {
+            revert("Invalid query type");
+        }
     }
 }
