@@ -1,68 +1,92 @@
-// worker_identity.leo
+program worker_identity.leo;
 
-import 0x01::pncw_governance;
-import 0x01::pniw_governance;
-import 0x01::payroll;
-import 0x01::zk_verifier;
+mapping worker_category: mapping(address, string);  // Worker category classification
+mapping worker_verified: mapping(address, bool);   // Worker identity verification status
+mapping worker_kyc_timestamp: mapping(address, u64); // Optional KYC timestamp tracking
+mapping trust_fund_eligibility: mapping(address, bool); // Worker trust fund eligibility
+mapping worker_descendants: mapping(address, address); // Mapping of worker to child (descendant)
+mapping descendant_verified: mapping(address, bool); // Verification of child’s KYC status
 
-// Structure for storing worker identity data
-struct WorkerIdentity has store {
-    worker_id: u64,
-    worker_type: u8,    // 0 = PNcW, 1 = PNiW
-    industry_type: u64, // Industry-specific verification
-    is_verified: bool,
+// Struct for tracking worker identity details
+struct WorkerIdentity {
+    worker_address: address,
+    category: string,
+    verified: bool,
+    kyc_timestamp: u64,
 }
 
-// Mapping for storing worker identities
-mapping worker_registry: u64 -> WorkerIdentity;
+// Struct for tracking descendant trust fund access
+struct DescendantAccess {
+    descendant_address: address,
+    parent_worker: address,
+    verified: bool,
+}
 
-// Function to register a new worker
-public fun register_worker(worker_id: u64, worker_type: u8, industry_type: u64) -> bool {
-    let verified = zk_verifier::verify_identity(worker_id);
-    assert!(verified, 0); // Ensure identity proof is valid
-
-    let new_worker = WorkerIdentity {
-        worker_id: worker_id,
-        worker_type: worker_type,
-        industry_type: industry_type,
-        is_verified: true,
-    };
-
-    worker_registry[worker_id] = new_worker;
-
-    match worker_type {
-        0 => pncw_governance::add_worker(worker_id),
-        1 => pniw_governance::add_worker(worker_id),
-        _ => return false,
-    };
-
+// Function to verify a worker's identity
+function verify_worker(worker: address) -> bool {
+    ensure!(worker_verified[worker] == false, "Worker is already verified");
+    worker_verified[worker] = true;
+    worker_kyc_timestamp[worker] = get_current_time();
     return true;
 }
 
-// Function to check if a worker is verified
-public fun is_verified_worker(worker_id: u64) -> bool {
-    let worker = worker_registry[worker_id];
-    return worker.is_verified;
+// Function to classify a worker into an industry category
+function set_worker_category(worker: address, category: string) {
+    ensure!(category == "General" || category == "Skilled" || category == "Agricultural" || category == "Healthcare",
+            "Invalid category");
+
+    worker_category[worker] = category;
 }
 
-// Function to retrieve worker classification
-public fun get_worker_type(worker_id: u64) -> u8 {
-    let worker = worker_registry[worker_id];
-    return worker.worker_type;
+// Function to check if a worker is eligible for trust fund contributions
+function check_trust_fund_eligibility(worker: address) -> bool {
+    ensure!(worker_verified[worker] == true, "Worker must be verified for trust fund eligibility");
+    return trust_fund_eligibility[worker];
 }
 
-// Function to update a worker's industry classification (e.g., for job changes)
-public fun update_industry(worker_id: u64, new_industry: u64) -> bool {
-    let mut worker = worker_registry[worker_id];
-    assert!(worker.is_verified, 0); // Only verified workers can update
+// Function to enable trust fund eligibility for verified workers
+function enable_trust_fund(worker: address) {
+    ensure!(worker_verified[worker] == true, "Worker must be verified for trust fund access");
+    trust_fund_eligibility[worker] = true;
+}
 
-    worker.industry_type = new_industry;
-    worker_registry[worker_id] = worker;
+// Function to disable trust fund eligibility (for compliance violations)
+function disable_trust_fund(worker: address) {
+    trust_fund_eligibility[worker] = false;
+}
+
+// Function to register a worker's child (descendant)
+function register_descendant(worker: address, child: address) {
+    ensure!(worker_verified[worker] == true, "Parent worker must be verified");
+    worker_descendants[child] = worker;
+}
+
+// Function to verify a descendant’s identity (KYC proof)
+function verify_descendant(child: address) -> bool {
+    ensure!(worker_descendants[child] != address(0), "Child must be registered as a descendant of a worker");
+    descendant_verified[child] = true;
     return true;
 }
 
-// Function to verify if a worker meets payroll requirements
-public fun verify_for_payroll(worker_id: u64) -> bool {
-    let worker = worker_registry[worker_id];
-    return payroll::validate_worker(worker_id, worker.worker_type);
+// Function to check if a descendant is eligible to withdraw trust funds
+function check_descendant_trust_access(child: address) -> bool {
+    let parent_worker = worker_descendants[child];
+    ensure!(descendant_verified[child] == true, "Descendant must have KYC verification");
+    ensure!(parent_worker != address(0), "No registered parent worker found");
+    return trust_fund_eligibility[parent_worker];
+}
+
+// Utility function to check worker verification status
+function is_worker_verified(worker: address) -> bool {
+    return worker_verified[worker];
+}
+
+// Utility function to get the worker's KYC timestamp
+function get_worker_kyc_timestamp(worker: address) -> u64 {
+    return worker_kyc_timestamp[worker];
+}
+
+// Utility function to get the current timestamp
+function get_current_time() -> u64 {
+    return env::block_timestamp();
 }
