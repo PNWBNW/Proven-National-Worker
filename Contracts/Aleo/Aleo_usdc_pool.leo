@@ -1,4 +1,4 @@
-program aleo_usdc_pool.aleo;
+program aleo_usdc_pool.leo;
 
 mapping employer_balances:
     key address as field;
@@ -18,21 +18,21 @@ function deposit_aleo_usdc(public employer: address, public amount: u64) -> bool
     return true;
 }
 
-function set_employer_obligation(public employer: address, public obligation: u64) -> bool {
-    employer_obligations.insert(employer, obligation);
-    return true;
-}
-
 function withdraw_for_payroll(public employer: address, public amount: u64) -> bool {
     let current_balance = employer_balances.get_or_use(employer, 0u64);
     let employer_obligation = employer_obligations.get_or_use(employer, 0u64);
 
-    // Calculate required balance (25% more than total employer obligations)
+    // Ensure employer maintains 25% more than total obligations
     let required_balance = employer_obligation * 125u64 / 100u64;
     ensure(current_balance >= required_balance, "AleoUSDC Pool is below the required threshold");
 
     ensure(current_balance >= amount, "Insufficient AleoUSDC balance");
     employer_balances.insert(employer, current_balance - amount);
+    return true;
+}
+
+function set_employer_obligation(public employer: address, public obligation: u64) -> bool {
+    employer_obligations.insert(employer, obligation);
     return true;
 }
 
