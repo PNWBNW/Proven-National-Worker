@@ -1,12 +1,17 @@
-//pragma solidity ^0.8.20
+// pragma solidity ^0.8.20;
+
+interface IFiatUSDCPool {
+    function withdrawForPayroll(address _employer, uint256 _amount) external returns (bool);
+    function fiatPoolQueries(uint8 queryType, address _employer) external view returns (uint256, uint256, bool);
+}
 
 contract PNWPayrollBridge {
+    IFiatUSDCPool public fiatUSDCPool;
+
     struct Employer {
         address employerAddress;
         uint256 prepaidWages;
         uint256 prepaidTaxes;
-        uint256 fiatUSDCpool;
-        uint256 aleoUSDCpool;
         bool isCompliant;
     }
 
@@ -23,8 +28,10 @@ contract PNWPayrollBridge {
 
     event PayrollProcessed(uint8 actionType, address indexed employer, address indexed worker, uint256 amount, bool success, bool usedFiatPool);
     event EmployerComplianceUpdated(address indexed employer, bool isCompliant);
-    event FiatPoolFunded(address indexed employer, uint256 amount);
-    event AleoUSDCUsed(address indexed employer, uint256 amount);
+
+    constructor(address _fiatUSDCPoolAddress) {
+        fiatUSDCPool = IFiatUSDCPool(_fiatUSDCPoolAddress);
+    }
 
     function payrollManagement(
         uint8 actionType, 
@@ -44,49 +51,42 @@ contract PNWPayrollBridge {
             emit PayrollProcessed(1, _employer, _worker, _amount, true, false);
         } 
         else if (actionType == 2) { // Withdraw from Fiat Pool (Pull AleoUSDC if Insufficient)
+            uint256 fiatBalance;
+            uint256 aleoBalance;
+            bool isAllowed;
+
+            (fiatBalance, aleoBalance, isAllowed) = fiatUSDCPool.fiatPoolQueries(1, _employer);
+            require(isAllowed, "Employer is restricted");
+
             uint256 fee = isZPass ? (_amount * 1) / 100 : (_amount * 2) / 100;
             uint256 finalPayout = _amount - fee;
 
-            if (employers[_employer].fiatUSDCpool >= _amount) {
+            if (fiatBalance >= _amount) {
                 // Use Fiat Pool
-                employers[_employer].fiatUSDCpool -= _amount;
-                employers[_employer].fiatUSDCpool += fee; // Recycle fee into Fiat pool
+                require(fiatUSDCPool.withdrawForPayroll(_employer, _amount), "Fiat Pool withdrawal failed");
                 emit PayrollProcessed(2, _employer, _worker, finalPayout, true, true);
             } 
             else {
                 // Insufficient Fiat Pool, pull from AleoUSDC
-                uint256 shortfall = _amount - employers[_employer].fiatUSDCpool;
-                require(employers[_employer].aleoUSDCpool >= shortfall, "Insufficient AleoUSDC to cover shortfall");
+                uint256 shortfall = _amount - fiatBalance;
+                require(aleoBalance >= shortfall, "Insufficient AleoUSDC to cover shortfall");
 
-                // Deduct from both pools
-                employers[_employer].aleoUSDCpool -= shortfall;
-                employers[_employer].fiatUSDCpool = 0; // Fully depleted
-                employers[_employer].fiatUSDCpool += fee; // Fee goes into Fiat pool
+                // Deduct from AleoUSDC pool
+                require(fiatUSDCPool.withdrawForPayroll(_employer, shortfall), "AleoUSDC withdrawal failed");
 
-                emit AleoUSDCUsed(_employer, shortfall);
                 emit PayrollProcessed(2, _employer, _worker, finalPayout, true, true);
             }
         } 
-        else if (actionType == 3) { // Fund Fiat Pool
-            require(_amount > 0, "Deposit must be greater than zero");
-            employers[msg.sender].fiatUSDCpool += _amount;
-            emit FiatPoolFunded(msg.sender, _amount);
-        } 
-        else if (actionType == 4) { // Fund AleoUSDC Pool
-            require(_amount > 0, "Deposit must be greater than zero");
-            employers[msg.sender].aleoUSDCpool += _amount;
-            emit AleoUSDCUsed(msg.sender, _amount);
-        } 
-        else if (actionType == 5) { // Update Employer Compliance
+        else if (actionType == 3) { // Update Employer Compliance
             require(employers[_employer].employerAddress != address(0), "Employer not found");
             employers[_employer].isCompliant = true;
             emit EmployerComplianceUpdated(_employer, true);
         } 
-        else if (actionType == 6) { // Restrict Employer
+        else if (actionType == 4) { // Restrict Employer
             require(employers[_employer].employerAddress != address(0), "Employer not found");
             restrictedEmployers[_employer] = true;
         } 
-        else if (actionType == 7) { // Reinstate Employer
+        else if (actionType == 5) { // Reinstate Employer
             require(restrictedEmployers[_employer], "Employer is not restricted");
             restrictedEmployers[_employer] = false;
         } 
@@ -95,14 +95,15 @@ contract PNWPayrollBridge {
         }
     }
 
-    function payrollQueries(uint8 queryType, address _user) external view returns (uint256, uint256, bool, bool) {
+    function payrollQueries(uint8 queryType, address _user) external view returns (uint256, bool, bool) {
         if (queryType == 1) { // Get Last Payroll for Worker
             require(payrolls[_user].length > 0, "No payroll history found");
             Payroll memory latest = payrolls[_user][payrolls[_user].length - 1];
-            return (latest.amount, 0, latest.processed, latest.usedFiatPool);
+            return (latest.amount, latest.processed, latest.usedFiatPool);
         } 
-        else if (queryType == 2) { // Get Employer Fiat & AleoUSDC Balances
-            return (employers[_user].fiatUSDCpool, employers[_user].aleoUSDCpool, employers[_user].isCompliant, false);
+        else if (queryType == 2) { // Get Employer Fiat Pool Balance
+            (uint256 fiatBalance, uint256 aleoBalance, bool isAllowed) = fiatUSDCPool.fiatPoolQueries(1, _user);
+            return (fiatBalance, isAllowed, false);
         } 
         else {
             revert("Invalid query type");
