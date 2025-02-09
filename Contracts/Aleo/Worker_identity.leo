@@ -1,8 +1,9 @@
-program worker_identity.leo;
+program worker_identity.aleo;
 
 mapping worker_category: mapping(address, string);  // Worker category classification
 mapping worker_verified: mapping(address, bool);   // Worker identity verification status
 mapping worker_kyc_timestamp: mapping(address, u64); // Optional KYC timestamp tracking
+mapping worker_zpass_verified: mapping(address, bool); // ZPass verification status
 mapping trust_fund_eligibility: mapping(address, bool); // Worker trust fund eligibility
 mapping worker_descendants: mapping(address, address); // Mapping of worker to child (descendant)
 mapping descendant_verified: mapping(address, bool); // Verification of child’s KYC status
@@ -12,6 +13,7 @@ struct WorkerIdentity {
     worker_address: address,
     category: string,
     verified: bool,
+    zpass_verified: bool,
     kyc_timestamp: u64,
 }
 
@@ -30,6 +32,14 @@ function verify_worker(worker: address) -> bool {
     return true;
 }
 
+// Function to verify worker's ZPass identity
+function verify_worker_zpass(worker: address) -> bool {
+    ensure!(worker_verified[worker] == true, "Worker must be identity-verified before enabling ZPass");
+    ensure!(worker_zpass_verified[worker] == false, "Worker is already ZPass verified");
+    worker_zpass_verified[worker] = true;
+    return true;
+}
+
 // Function to classify a worker into an industry category
 function set_worker_category(worker: address, category: string) {
     ensure!(category == "General" || category == "Skilled" || category == "Agricultural" || category == "Healthcare",
@@ -41,12 +51,14 @@ function set_worker_category(worker: address, category: string) {
 // Function to check if a worker is eligible for trust fund contributions
 function check_trust_fund_eligibility(worker: address) -> bool {
     ensure!(worker_verified[worker] == true, "Worker must be verified for trust fund eligibility");
+    ensure!(worker_zpass_verified[worker] == true, "Worker must have ZPass verification for trust fund eligibility");
     return trust_fund_eligibility[worker];
 }
 
-// Function to enable trust fund eligibility for verified workers
+// Function to enable trust fund eligibility for verified ZPass workers
 function enable_trust_fund(worker: address) {
     ensure!(worker_verified[worker] == true, "Worker must be verified for trust fund access");
+    ensure!(worker_zpass_verified[worker] == true, "Worker must have ZPass verification for trust fund access");
     trust_fund_eligibility[worker] = true;
 }
 
@@ -73,12 +85,18 @@ function check_descendant_trust_access(child: address) -> bool {
     let parent_worker = worker_descendants[child];
     ensure!(descendant_verified[child] == true, "Descendant must have KYC verification");
     ensure!(parent_worker != address(0), "No registered parent worker found");
+    ensure!(worker_zpass_verified[parent_worker] == true, "Parent worker must be ZPass verified for descendant trust access");
     return trust_fund_eligibility[parent_worker];
 }
 
 // Utility function to check worker verification status
 function is_worker_verified(worker: address) -> bool {
     return worker_verified[worker];
+}
+
+// Utility function to check ZPass verification status
+function is_worker_zpass_verified(worker: address) -> bool {
+    return worker_zpass_verified[worker];
 }
 
 // Utility function to get the worker's KYC timestamp
