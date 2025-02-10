@@ -18,6 +18,10 @@ The **PNW System** is a decentralized smart contract suite designed to provide *
 ✅ **SubDAO Governance** – Workers **vote on investment choices**, and **DAOs enforce compliance penalties**.
 
 ---
+### **👥 Worker Classifications**
+The **PNW System** recognizes two distinct worker classifications:
+- **Proven National Citizen Workers (PNcW)** – Citizens of a country working under decentralized payroll governance.  
+- **Proven National Immigrant Workers (PNiW)** – Individuals **working under a legal worker's visa**, ensuring payroll, tax compliance, and trust fund eligibility within host countries.
 
 ## 🛠 Installation  
 
