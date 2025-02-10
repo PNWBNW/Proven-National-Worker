@@ -1,0 +1,55 @@
+# ==========================
+# 🔹 Line Ending Handling
+# ==========================
+* text=auto
+*.sh text eol=lf
+*.js text eol=lf
+*.ts text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.sol text eol=lf
+*.leo text eol=lf
+*.rs text eol=lf
+*.toml text eol=lf
+
+# ==========================
+# 🔹 Mark Binary Files
+# ==========================
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.eot binary
+*.ttf binary
+*.mp4 binary
+*.mov binary
+*.webm binary
+*.zip binary
+*.tar binary
+*.gz binary
+*.bz2 binary
+*.wasm binary
+
+# ==========================
+# 🔹 Prevent Merge Conflicts in Lock Files
+# ==========================
+package-lock.json merge=union
+yarn.lock merge=union
+
+# ==========================
+# 🔹 Preserve Executable Permissions
+# ==========================
+*.sh text eol=lf
+*.sh binary
+*.wasm binary
+
+# ==========================
+# 🔹 Ignore Debug Files (GitHub UI)
+# ==========================
+.gitattributes export-ignore
+.gitignore export-ignore
