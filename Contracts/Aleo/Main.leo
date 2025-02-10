@@ -1,16 +1,22 @@
 program main.leo;
 
-mapping worker_category: mapping(address, string); // Worker category flagging
+// 🏷️ Mappings
+mapping worker_category: mapping(address, string); // Worker category classification
 mapping pto_balances: mapping(address, u64);      // PTO balance per worker
 mapping sick_balances: mapping(address, u64);     // Sick leave balance per worker
 mapping employer_pto_funds: mapping(address, u64); // Employer-held PTO funds
 mapping employer_sick_funds: mapping(address, u64); // Employer-held Sick funds
 
 mapping last_accrual_time: mapping(address, u64); // Last time PTO/Sick Pay was accrued
-mapping sick_leave_used: mapping(address, u64); // Tracks sick leave used in current year
+mapping sick_leave_used: mapping(address, u64); // Tracks sick leave used in the current year
 mapping farm_investments: mapping(address, u64); // Tracks PTO/Sick Pay used for farm investment
+mapping worker_zpass_verified: mapping(address, bool); // Worker ZPass verification status
 
-// Struct to track worker PTO and Sick Pay status
+// 🔹 New ANS Mappings
+mapping ans_registry: mapping(address, string);  // Maps worker addresses to ANS names
+mapping ans_reverse_lookup: mapping(string, address);  // Maps ANS names to worker addresses
+
+// 📦 Structs
 struct WorkerPTO {
     worker_address: address,
     category: string,
@@ -19,7 +25,7 @@ struct WorkerPTO {
     last_updated: u64, // Timestamp of last accrual update
 }
 
-// Assign category to worker (set by employer)
+// ✅ Function: Assign category to worker (set by employer)
 function set_worker_category(worker: address, category: string) {
     ensure!(category == "General" || category == "Skilled" || category == "Agricultural" || category == "Healthcare",
             "Invalid category");
@@ -27,11 +33,19 @@ function set_worker_category(worker: address, category: string) {
     worker_category[worker] = category;
 }
 
-// Accrue PTO and Sick Pay for a worker during payroll processing
+// ✅ Function: Assign category to worker using ANS
+function set_worker_category_by_ans(worker_ans: string, category: string) {
+    let worker = lookup_worker_by_ans(worker_ans);
+    set_worker_category(worker, category);
+}
+
+// ✅ Function: Accrue PTO and Sick Pay for a worker during payroll processing
 function accrue_pto_sick_pay(worker: address, employer: address, hours_worked: u64) {
+    ensure(worker_zpass_verified.get_or_use(worker, false), "Worker must be ZPass verified for PTO/Sick Pay accrual");
+
     let category = worker_category[worker];
-    
-    // Adjust accrual rates based on worker category (if needed)
+
+    // Adjust accrual rates based on worker category
     let sick_rate = if category == "Healthcare" { 1 } else { 1 / 40 };
     let pto_rate = if category == "Agricultural" { 1 / 30 } else { 1 / 20 };
 
@@ -55,9 +69,11 @@ function accrue_pto_sick_pay(worker: address, employer: address, hours_worked: u
     employer_pto_funds[employer] -= pto_accrued;
 }
 
-// Worker requests PTO payout
+// ✅ Function: Worker requests PTO payout
 function request_pto(worker: address, amount: u64) -> bool {
+    ensure!(worker_zpass_verified.get_or_use(worker, false), "Worker must be ZPass verified to request PTO");
     ensure!(pto_balances[worker] >= amount, "Insufficient PTO balance");
+
     pto_balances[worker] -= amount;
     
     // Send payout to worker
@@ -65,8 +81,17 @@ function request_pto(worker: address, amount: u64) -> bool {
     return true;
 }
 
-// Worker requests Sick Pay payout
+// ✅ Function: Worker requests PTO payout using ANS
+function request_pto_by_ans(worker_ans: string, amount: u64) -> bool {
+    let worker = lookup_worker_by_ans(worker_ans);
+    request_pto(worker, amount);
+    
+    return true;
+}
+
+// ✅ Function: Worker requests Sick Pay payout
 function request_sick_pay(worker: address, amount: u64, verified: bool) -> bool {
+    ensure!(worker_zpass_verified.get_or_use(worker, false), "Worker must be ZPass verified to request Sick Pay");
     ensure!(sick_balances[worker] >= amount, "Insufficient Sick Pay balance");
 
     // Ensure sick pay usage does not exceed 40 hours per year if unverified
@@ -84,9 +109,11 @@ function request_sick_pay(worker: address, amount: u64, verified: bool) -> bool 
     return true;
 }
 
-// Worker invests PTO/Sick Pay into farm investment (Only for Agricultural workers)
+// ✅ Function: Worker invests PTO/Sick Pay into farm investment (Only for Agricultural workers)
 function invest_pto_sick_pay(worker: address, amount: u64, source: string) -> bool {
     let category = worker_category[worker];
+
+    ensure!(worker_zpass_verified.get_or_use(worker, false), "Worker must be ZPass verified to invest in farms");
 
     // Restrict farm investment to Agricultural workers only
     ensure!(category == "Agricultural", "Only workers in the Agricultural industry can invest in farm projects");
@@ -107,32 +134,32 @@ function invest_pto_sick_pay(worker: address, amount: u64, source: string) -> bo
     return true;
 }
 
-// Ensure employer has properly funded PTO/Sick Pay pools
+// ✅ Function: Verify employer has properly funded PTO/Sick Pay pools
 function verify_employer_funding(employer: address) -> bool {
     ensure!(employer_pto_funds[employer] >= 0, "Employer PTO fund deficit detected");
     ensure!(employer_sick_funds[employer] >= 0, "Employer Sick Pay fund deficit detected");
     return true;
 }
 
-// Employer deposits PTO/Sick Pay reserves
+// ✅ Function: Employer deposits PTO/Sick Pay reserves
 function employer_deposit_funds(employer: address, pto_amount: u64, sick_amount: u64) {
     employer_pto_funds[employer] += pto_amount;
     employer_sick_funds[employer] += sick_amount;
 }
 
-// Employer penalties for noncompliance
+// ✅ Function: Employer penalties for noncompliance
 function employer_penalty(employer: address, penalty_amount: u64) {
     ensure!(penalty_amount > 0, "Penalty must be greater than zero");
-    
+
     // Deduct from employer funds
     employer_pto_funds[employer] -= penalty_amount / 2;
     employer_sick_funds[employer] -= penalty_amount / 2;
-    
+
     // Distribute penalties to a worker protection pool or DAO fund
     transfer_private dao_treasury penalty_amount;
 }
 
-// SubDAO function to check employer compliance
+// ✅ Function: SubDAO checks employer compliance
 function subdao_check_compliance(employer: address) -> bool {
     let pto_funding = employer_pto_funds[employer];
     let sick_funding = employer_sick_funds[employer];
@@ -144,7 +171,19 @@ function subdao_check_compliance(employer: address) -> bool {
     return true;
 }
 
-// Utility function to get the current timestamp
+// ✅ Utility function: Get the current timestamp
 function get_current_time() -> u64 {
     return env::block_timestamp();
+}
+
+// ✅ Utility function: Lookup a worker's ANS name by address
+function lookup_worker_by_address(worker: address) -> string {
+    ensure!(ans_registry.contains(worker), "Worker does not have an ANS name");
+    return ans_registry[worker];
+}
+
+// ✅ Utility function: Lookup a worker's address by ANS name
+function lookup_worker_by_ans(ans_name: string) -> address {
+    ensure!(ans_reverse_lookup.contains(ans_name), "ANS name not found");
+    return ans_reverse_lookup[ans_name];
 }
