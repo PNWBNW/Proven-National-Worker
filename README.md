@@ -8,7 +8,7 @@ The **PNW System** is a decentralized smart contract suite designed to provide *
 
 ## 📌 Features  
 
-✅ **On-Chain Payroll** – Supports **PNcW (Citizen) and PNiW (Immigrant) workers** with **real-time employer compliance tracking**.  
+✅**PNcW (Citizen) and PNiW (Immigrant Visa Holders)** with **real-time employer compliance tracking**.  
 ✅ **PTO & Sick Pay** – Workers accrue **PTO & Sick Pay** via payroll, with **direct withdrawals & farm investment options**.  
 ✅ **Farm Investment Contracts** – Agricultural workers can **invest PTO/Sick Pay into farm projects** and **mint RWA NFTs**.  
 ✅ **Zero-Knowledge (ZK) Verification** – Uses **ZPass & Merkle proofs** to validate **worker identity & tax compliance**.  
