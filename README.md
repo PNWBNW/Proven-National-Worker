@@ -33,10 +33,6 @@ Ensure you have the following installed before proceeding:
 ---
 
 ### **🔹 Setup**
-Clone the repository:
-```sh
-git clone https://github.com/your-repo/pnw-system.git
-cd pnw-system
 
 Install dependencies:
 
