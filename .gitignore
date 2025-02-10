@@ -1,39 +1,94 @@
-# Node.js dependencies  
-node_modules/  
-package-lock.json  
+# ==========================
+# 🔹 Node.js Dependencies
+# ==========================
+node_modules/
+package-lock.json
 
-# Environment variables  
-.env  
-*.env.local  
+# ==========================
+# 🔹 Environment Variables
+# ==========================
+.env
+*.env.local
 
-# Build artifacts  
-dist/  
-build/  
-.cache/  
-out/  
+# ==========================
+# 🔹 Build Artifacts
+# ==========================
+dist/
+build/
+.cache/
+out/
 
-# Logs  
-npm-debug.log*  
-yarn-debug.log*  
-yarn-error.log*  
-pnpm-debug.log*  
+# ==========================
+# 🔹 Log Files
+# ==========================
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
 
-# Solidity & Hardhat files  
-artifacts/  
-cache/  
-coverage/  
-typechain/  
+# ==========================
+# 🔹 Solidity & Hardhat Files
+# ==========================
+artifacts/
+cache/
+coverage/
+typechain/
+.solcover.js
+.solcover.json
+gas-reports/
 
-# Aleo-specific ignores  
-aleo/target/  
-aleo/build/  
-aleo/cache/  
+# ==========================
+# 🔹 Aleo-specific Ignores
+# ==========================
+aleo/target/
+aleo/build/
+aleo/cache/
+aleo/tests/.temp/
+aleo/tests/*.aleo_output/
+aleo/tests/*.aleo_witness/
 
-# VS Code & IDE files  
-.vscode/  
-.idea/  
-*.iml  
+# ==========================
+# 🔹 Stellar Soroban Ignores
+# ==========================
+stellar/target/
+stellar/build/
+stellar/cache/
+stellar/tests/.temp/
+stellar/tests/*.wasm
+stellar/tests/*.soroban_output/
 
-# OS-specific files  
-.DS_Store  
+# ==========================
+# 🔹 CI/CD & Deployment Files
+# ==========================
+.github/workflows/*.log
+.github/workflows/cache/
+coverage/
+test-results/
+jest-coverage/
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+
+# ==========================
+# 🔹 VS Code & IDE Files
+# ==========================
+.vscode/
+.idea/
+*.iml
+
+# ==========================
+# 🔹 OS-Specific Files
+# ==========================
+.DS_Store
 Thumbs.db
+
+# ==========================
+# 🔹 Temporary & Debug Files
+# ==========================
+*.swp
+*.swo
+*.bak
+*.tmp
+*.log
