@@ -1,89 +1,147 @@
-# Proven National Workers (PNW) System: A Decentralized Workforce & Payroll Network for Compliance and Transparency
 
-**Date:** February 2025  
-**Version:** 1.1  
 
----
+# 🚀 Proven National Workers (PNW) System  
 
-## 1. Introduction  
-The **Proven National Workers (PNW) System** is a decentralized workforce and payroll network designed to enhance **labor compliance, financial transparency, and secure employment verification** while **protecting workers and employers** through **on-chain automation, identity verification, and governance mechanisms**.  
-
-PNW does not **replace or override existing government systems** but instead serves as a **digital compliance layer** that ensures employment records, payroll processing, and workforce protections are **recorded, auditable, and enforceable** on-chain. By leveraging automated verification mechanisms, structured wage distribution, and compliance tracking, PNW fosters a **more accountable and efficient labor ecosystem**.
+The **PNW System** is a decentralized smart contract suite designed to provide **trustless payroll, PTO/Sick Pay management, farm investment tracking, and regulatory compliance** across **Aleo, Stellar Soroban, and EVM-based chains**.
 
 ---
 
-## 2. Purpose & Design Philosophy  
+## 📌 Features  
 
-The **PNW Smart Contract System** is structured as a **compliance enhancement tool**, ensuring that workforce operations remain **aligned with legal and financial standards**. It operates with the following key objectives:  
-
-- **Enhancing workforce oversight** through verifiable on-chain employment agreements, payroll records, and tax contributions.  
-- **Providing automated verification mechanisms** to validate work eligibility without replacing existing government verification structures.  
-- **Ensuring payroll stability** by enforcing pre-funded wages and tax compliance before funds are distributed.  
-- **Empowering both workers and employers** through decentralized governance that **maintains workforce integrity while upholding labor agreements**.  
-
-These measures **streamline workforce operations without interfering with established governance structures**.
-
----
-
-## 3. Core Functionalities  
-
-The PNW system operates through **automated smart contracts** that **enforce financial and workforce compliance** without reliance on intermediaries. Below is an overview of how each function works:
-
-### 3.1 Identity & Employment Verification  
-- Workers provide **on-chain attestations** of employment status.  
-- Employers verify worker eligibility using **existing government databases via API requests** (government data remains in **government control**).  
-- Once verified, workers receive a **cryptographic proof of employment**, allowing them to access payroll and governance rights.  
-
-**Key Clarification:** *PNW does not modify, replace, or store government workforce data. It only requests API-based verification for eligibility, ensuring all work is legally authorized.*  
-
-### 3.2 Financial Accountability & Payroll Enforcement  
-- **Escrowed payroll contracts** require employers to pre-fund wages before work begins.  
-- **Automated deductions** ensure tax contributions are allocated at the point of payroll processing.  
-- **On-chain audits** prevent manipulation, ensuring every financial transaction is recorded and traceable.  
-
-### 3.3 Workforce Protections & Governance  
-- **Workers and employers participate in governance through SubDAOs**, ensuring collective decision-making.  
-- **Workers can report workplace violations on-chain**, providing a **secure, immutable complaint process**.  
-- **Employer compliance history is tracked**, preventing abusive employment practices and ensuring continuous regulatory adherence.  
-
-### 3.4 Compliance Tracking & Government API Requests  
-- Employers submitting payroll must meet **predefined tax compliance thresholds** before payouts occur.  
-- API requests are used to **verify tax payments**, **validate business legitimacy**, and **confirm work eligibility**.  
-- Government agencies remain **in full control of their own data**, with PNW serving only as a **request-based compliance enforcer**.  
-
-**Key Clarification:** *PNW does not interfere with government employment positions or decision-making processes. It only facilitates structured, automated verification to streamline compliance for workers and employers.*  
+✅ **On-Chain Payroll** – Supports **PNcW (Citizen) and PNiW (Immigrant) workers** with **real-time employer compliance tracking**.  
+✅ **PTO & Sick Pay** – Workers accrue **PTO & Sick Pay** via payroll, with **direct withdrawals & farm investment options**.  
+✅ **Farm Investment Contracts** – Agricultural workers can **invest PTO/Sick Pay into farm projects** and **mint RWA NFTs**.  
+✅ **Zero-Knowledge (ZK) Verification** – Uses **ZPass & Merkle proofs** to validate **worker identity & tax compliance**.  
+✅ **Aleo Naming Service (ANS) Integration** – Workers can **link their identity to human-readable ANS names**.  
+✅ **Multi-Chain Bridging** – Payroll can **settle via Aleo, Stellar, or EVM rollups** to minimize gas fees.  
+✅ **Regulatory Compliance** – Employer taxes are **automatically verified via government API integration**.  
+✅ **SubDAO Governance** – Workers **vote on investment choices**, and **DAOs enforce compliance penalties**.
 
 ---
 
-## 4. Compliance & Transparency Features  
+## 🛠 Installation  
 
-| **Feature** | **Purpose** | **Impact** |
-|------------|------------|------------------|
-| **On-Chain Worker Verification** | Confirms legal work eligibility | Ensures workforce legitimacy |
-| **Escrowed Payroll Transactions** | Guarantees pre-funded wages | Eliminates payroll fraud |
-| **Automated Tax Compliance Checks** | Verifies tax payments before payroll | Prevents tax evasion |
-| **Decentralized Worker Oversight** | Enables workers to participate in governance | Strengthens labor rights |
-| **Immutable Employment Records** | Provides verifiable work history | Increases workforce accountability |
+### **🔹 Prerequisites**  
+Ensure you have the following installed before proceeding:
 
-These features ensure that **all workforce operations remain transparent, legally compliant, and financially secure**.
-
----
-
-## 5. Conclusion: A System for Compliance and Efficiency  
-
-The **PNW system is designed to enhance workforce accountability, financial stability, and labor security** by integrating **automated verification, wage enforcement, and compliance tracking**.  
-
-By **streamlining regulatory compliance and ensuring financial integrity**, PNW fosters an **ecosystem where workers, employers, and financial institutions operate with full transparency**.  
-
-### Call to Action  
-We encourage workforce organizations, employers, and compliance professionals to **engage with the PNW system** to ensure it remains an **effective and fair solution for labor and payroll management**.  
-
-For further discussions, inquiries, or system reviews, please contact:  
-[Your Contact Information]  
+- [Aleo CLI](https://developer.aleo.org/)  
+- [Stellar Soroban CLI](https://soroban.stellar.org/)  
+- [Foundry (Solidity)](https://getfoundry.sh/)  
+- [Node.js & npm](https://nodejs.org/)  
+- [jq (JSON Parser)](https://stedolan.github.io/jq/)  
 
 ---
 
-### Appendix: Compliance References  
-- **Workforce Contribution Standards & Financial Integrity**  
-- **Automated Payroll Compliance & Wage Protection**  
-- **Decentralized Governance in Workforce Management**
+### **🔹 Setup**
+Clone the repository:
+```sh
+git clone https://github.com/your-repo/pnw-system.git
+cd pnw-system
+
+Install dependencies:
+
+npm install
+
+
+---
+
+⚙️ Compilation & Deployment
+
+🔹 Compile All Contracts
+
+sh compile.sh
+
+🔹 Deploy Smart Contracts
+
+Aleo Deployment:
+
+sh deploy_aleo.sh
+
+Stellar Deployment:
+
+sh deploy_stellar.sh
+
+EVM Deployment:
+
+sh deploy_evm.sh
+
+
+---
+
+🔗 Supported Networks
+
+More networks available in network.json.
+
+
+---
+
+🏛 Governance & Compliance
+
+Payroll Compliance: Employers must pre-fund PTO, Sick Pay & Payroll before hiring workers.
+
+SubDAO Voting: DAOs enforce employer penalties, approve farm investments, and govern network upgrades.
+
+ZK Proofs & Merkle Trees: Workers verify identity, compliance, and earnings using privacy-preserving proofs.
+
+RWA NFT Governance: Farm workers can tokenize investments as fractional NFTs and redeem them for real-world assets.
+
+
+
+---
+
+🔍 Zero-Knowledge Verification
+
+ZPass Verification: Required for trust fund participation & payroll.
+
+Merkle Audits: Farms earn rewards for data availability.
+
+
+
+---
+
+🔥 Contribution Guide
+
+Want to contribute? Follow these steps:
+
+1️⃣ Fork the repository
+2️⃣ Create a feature branch
+3️⃣ Submit a pull request (PR)
+
+Development Roadmap:
+
+✅ Aleo, Stellar, & EVM Payroll
+
+✅ ANS & ZPass Integration
+
+✅ Trust Funds & PTO
+
+🔄 Fractional NFT Expansion (In Progress)
+
+🔜 Cross-Chain Payroll Settlement
+
+
+
+---
+
+📝 License
+
+The PNW Smart Contract Suite is released under a proprietary license.
+
+For inquiries, contact: pnw.x.farms@gmail.com
+
+
+---
+
+🌍 Socials & Community
+
+📢 Website: [Coming Soon]
+🛠 Dev Docs: [Coming Soon]
+💬 Discord: [Coming Soon]
+
+
+---
+
+🚀 PNW - Building a Fair, Decentralized Workforce
+
+---
+
