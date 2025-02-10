@@ -4,6 +4,7 @@ import aleo_usdc_pool.leo;
 import certification_verifier.leo;
 import farm_investment.leo;
 
+// 🏷️ Mappings
 mapping employer_balances: public hashmap<address, u64>;  // Employer payroll funds
 mapping employer_status: public hashmap<address, bool>;   // Employer compliance status
 mapping worker_assignments: public hashmap<address, address>;  // Worker → Employer mapping
@@ -13,6 +14,10 @@ mapping employer_farm_types: public hashmap<address, array<string>>;  // Allowed
 mapping employer_certifications: public hashmap<address, array<string>>;  // Certifications per employer
 mapping employer_investment_limits: public hashmap<address, u64>;  // Limits on worker investments per employer
 mapping employer_farm_investment_agreement: public hashmap<address, bool>;  // Employer agreement to negotiable worker farm investment
+
+// 🔹 New ANS Mappings
+mapping ans_registry: public hashmap<address, string>;  // Maps worker addresses to ANS names
+mapping ans_reverse_lookup: public hashmap<string, address>;  // Maps ANS names to worker addresses
 
 /// @dev Registers a new employer with funding, farm types, and compliance
 function register_employer(employer: address, initial_deposit: u64, farm_types: array<string>) -> bool {
@@ -26,7 +31,7 @@ function register_employer(employer: address, initial_deposit: u64, farm_types: 
     return true;
 }
 
-/// @dev Assigns a worker to an employer for contracted work or hourly work
+/// @dev Assigns a worker to an employer using wallet address
 function assign_worker(worker: address, employer: address, hourly: bool, wage: u64) -> bool {
     ensure(employer_status.get(employer).unwrap_or(false), "Employer is non-compliant; hiring is paused.");
     ensure(employer_farm_investment_agreement.get(employer).unwrap_or(false), "Employer has not agreed to negotiable farm investment.");
@@ -37,6 +42,12 @@ function assign_worker(worker: address, employer: address, hourly: bool, wage: u
     }
 
     return true;
+}
+
+/// @dev Assigns a worker to an employer using ANS
+function assign_worker_by_ans(worker_ans: string, employer: address, hourly: bool, wage: u64) -> bool {
+    let worker = lookup_worker_by_ans(worker_ans);
+    assign_worker(worker, employer, hourly, wage);
 }
 
 /// @dev Registers a farm certification for an employer (API-based verification required)
@@ -143,4 +154,16 @@ function close_employer_contract(employer: address) -> bool {
 
     employer_status.insert(employer, false);
     return true;
+}
+
+/// @dev Utility function: Lookup a worker's ANS name by address
+function lookup_worker_by_address(worker: address) -> string {
+    ensure!(ans_registry.contains(worker), "Worker does not have an ANS name");
+    return ans_registry[worker];
+}
+
+/// @dev Utility function: Lookup a worker's address by ANS name
+function lookup_worker_by_ans(ans_name: string) -> address {
+    ensure!(ans_reverse_lookup.contains(ans_name), "ANS name not found");
+    return ans_reverse_lookup[ans_name];
 }
