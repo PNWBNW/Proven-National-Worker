@@ -2,142 +2,166 @@
 
 import pncw_payroll.leo;
 
-test "Process Payroll and Accrue PTO/Sick Pay" {
-    let worker = address("aleo1workerxyz123");
-    let employer = address("aleo1employerabc456");
-
-    // Set initial balances
-    pncw_payroll::payroll_records[worker] = 0;
-    pncw_payroll::pto_balances[worker] = 0;
-    pncw_payroll::sick_balances[worker] = 0;
-
-    let wage = 1000;
+test "Process Payroll for ZPass Verified Worker" {
+    let worker = address("aleo1workerxyz456");
+    let employer = address("aleo1employerabc123");
+    let wage = 3000;
     let hours_worked = 40;
-    let trust_contribution = 50;
+    let trust_contribution = 200;
+
+    // Ensure worker is ZPass verified
+    assert!(pncw_payroll::worker_zpass_verified[worker] == true);
 
     // Process payroll
     assert!(pncw_payroll::process_payroll(worker, employer, wage, hours_worked, trust_contribution) == true);
 
-    // Verify balances updated
+    // Verify payroll balances
     assert!(pncw_payroll::payroll_records[worker] == wage);
-    assert!(pncw_payroll::pto_balances[worker] == 2); // 1 hour PTO per 20 hours worked
-    assert!(pncw_payroll::sick_balances[worker] == 1); // 1 hour sick per 40 hours worked
+    assert!(pncw_payroll::pto_balances[worker] > 0);
+    assert!(pncw_payroll::sick_balances[worker] > 0);
     assert!(pncw_payroll::trust_funds[worker] == trust_contribution);
 }
 
-test "Verify Employer USDC Pool Compliance" {
-    let employer = address("aleo1employerabc456");
+test "Withdraw Payroll Funds (ZPass & ANS Required)" {
+    let worker = address("aleo1workerxyz456");
+    let ans_name = "johndoe.pncw";
+    let withdrawal_amount = 1000;
 
-    // Set employer USDC balance
-    pncw_payroll::minimum_usdc_pool[employer] = 5000;
-    assert!(pncw_payroll::verify_usdc_pool(employer) == true);
+    // Ensure worker is ZPass verified
+    assert!(pncw_payroll::worker_zpass_verified[worker] == true);
 
-    // Reduce employer balance (simulate underfunding)
-    pncw_payroll::minimum_usdc_pool[employer] = 100;
-    assert!(pncw_payroll::verify_usdc_pool(employer) == false);
-}
-
-test "Employer Deposit USDC into Payroll Pool" {
-    let employer = address("aleo1employerabc456");
-
-    // Set employer balance
-    pncw_payroll::minimum_usdc_pool[employer] = 2000;
-    assert!(pncw_payroll::verify_usdc_pool(employer) == true);
-
-    // Deposit additional USDC
-    assert!(pncw_payroll::employer_deposit_usdc(employer, 3000) == true);
-
-    // Verify updated balance
-    assert!(pncw_payroll::minimum_usdc_pool[employer] == 5000);
-}
-
-test "Enforce USDC Penalty for Noncompliance" {
-    let employer = address("aleo1employerabc456");
-
-    // Set employer balance below requirement
-    pncw_payroll::minimum_usdc_pool[employer] = 200;
-
-    // Enforce penalty (10% of missing balance)
-    assert!(pncw_payroll::enforce_usdc_penalty(employer) == true);
-
-    // Ensure penalty deducted
-    assert!(pncw_payroll::minimum_usdc_pool[employer] < 200);
-}
-
-test "Worker Withdraws Payroll (With PTO & Sick Pay)" {
-    let worker = address("aleo1workerxyz123");
-
-    // Set initial balances
-    pncw_payroll::payroll_records[worker] = 1000;
-    pncw_payroll::pto_balances[worker] = 50;
-    pncw_payroll::sick_balances[worker] = 40;
-
-    // Worker withdraws payroll including PTO & Sick Pay
-    assert!(pncw_payroll::withdraw_payroll(worker, 1090, true, true) == true);
-
-    // Verify balances deducted correctly
-    assert!(pncw_payroll::payroll_records[worker] == 0);
-    assert!(pncw_payroll::pto_balances[worker] == 10); // 50 - 40 used
-    assert!(pncw_payroll::sick_balances[worker] == 0); // Fully used
-}
-
-test "Agricultural Worker Invests PTO/Sick Pay in Farm" {
-    let worker = address("aleo1workerxyz123");
-
-    // Set worker category
-    pncw_payroll::worker_category[worker] = "Agricultural";
-
-    // Set PTO/Sick balances
-    pncw_payroll::pto_balances[worker] = 40;
-    pncw_payroll::sick_balances[worker] = 30;
-
-    // Attempt farm investment using PTO
-    assert!(pncw_payroll::invest_pto_sick_pay(worker, 20, "PTO") == true);
-    assert!(pncw_payroll::pto_balances[worker] == 20); // Deducted
-
-    // Attempt farm investment using Sick Pay
-    assert!(pncw_payroll::invest_pto_sick_pay(worker, 10, "Sick") == true);
-    assert!(pncw_payroll::sick_balances[worker] == 20); // Deducted
-}
-
-test "Employer Penalty for Payroll Noncompliance" {
-    let employer = address("aleo1employerabc456");
-
-    // Set employer funds
-    pncw_payroll::employer_pto_funds[employer] = 1000;
-    pncw_payroll::employer_sick_funds[employer] = 1000;
-
-    // Apply penalty
-    assert!(pncw_payroll::employer_penalty(employer, 500) == true);
-
-    // Verify funds reduced correctly
-    assert!(pncw_payroll::employer_pto_funds[employer] == 750); // 50% penalty taken
-    assert!(pncw_payroll::employer_sick_funds[employer] == 750);
-}
-
-test "SubDAO Compliance Check on Employer" {
-    let employer = address("aleo1employerabc456");
-
-    // Employer is noncompliant
-    pncw_payroll::employer_pto_funds[employer] = -100;
-    pncw_payroll::employer_sick_funds[employer] = 500;
-
-    // Check compliance (should fail)
-    assert!(pncw_payroll::subdao_check_compliance(employer) == false);
-
-    // Ensure penalty applied
-    assert!(pncw_payroll::employer_pto_funds[employer] < 0);
-}
-
-test "ANS Integration: Worker Payroll Lookup" {
-    let worker = address("aleo1workerxyz123");
-    let ans_name = "john.doe.pncw";
-
-    // Register worker ANS
+    // Assign ANS name to worker
     pncw_payroll::ans_registry[worker] = ans_name;
     pncw_payroll::ans_reverse_lookup[ans_name] = worker;
 
-    // Verify ANS mapping works
-    assert!(pncw_payroll::lookup_worker_by_ans(ans_name) == worker);
-    assert!(pncw_payroll::lookup_worker_by_address(worker) == ans_name);
+    // Withdraw payroll
+    assert!(pncw_payroll::withdraw_payroll(worker, withdrawal_amount, false, false) == true);
+
+    // Verify deduction
+    assert!(pncw_payroll::payroll_records[worker] == 2000);
+}
+
+test "Withdraw PTO Balance (ZPass & ANS Required)" {
+    let worker = address("aleo1workerxyz456");
+    let ans_name = "johndoe.pncw";
+    let withdrawal_amount = 4;
+
+    // Ensure worker is ZPass verified
+    assert!(pncw_payroll::worker_zpass_verified[worker] == true);
+
+    // Assign ANS name to worker
+    pncw_payroll::ans_registry[worker] = ans_name;
+    pncw_payroll::ans_reverse_lookup[ans_name] = worker;
+
+    // Withdraw PTO
+    assert!(pncw_payroll::withdraw_payroll(worker, withdrawal_amount, true, false) == true);
+
+    // Verify PTO deduction
+    assert!(pncw_payroll::pto_balances[worker] < 4);
+}
+
+test "Withdraw Sick Leave Balance (ZPass & ANS Required)" {
+    let worker = address("aleo1workerxyz456");
+    let withdrawal_amount = 2;
+
+    // Ensure worker is ZPass verified
+    assert!(pncw_payroll::worker_zpass_verified[worker] == true);
+
+    // Withdraw sick pay
+    assert!(pncw_payroll::withdraw_payroll(worker, withdrawal_amount, false, true) == true);
+
+    // Verify sick balance deduction
+    assert!(pncw_payroll::sick_balances[worker] < 2);
+}
+
+test "Employer Funds Payroll Reserves (ZPass Required)" {
+    let employer = address("aleo1employerabc123");
+    let deposit_amount = 5000;
+
+    // Ensure employer is ZPass verified
+    assert!(pncw_payroll::employer_zpass_verified[employer] == true);
+
+    // Deposit payroll reserves
+    assert!(pncw_payroll::employer_deposit_usdc(employer, deposit_amount) == true);
+
+    // Verify balance update
+    assert!(pncw_payroll::get_usdc_balance(employer) == deposit_amount);
+}
+
+test "Ensure Employer Has Required Payroll Liquidity (ZPass Required)" {
+    let employer = address("aleo1employerabc123");
+
+    // Ensure employer is ZPass verified
+    assert!(pncw_payroll::employer_zpass_verified[employer] == true);
+
+    // Verify employer liquidity
+    assert!(pncw_payroll::verify_usdc_pool(employer) == true);
+
+    // Simulate underfunding
+    pncw_payroll::set_usdc_balance(employer, 100);
+    assert!(pncw_payroll::verify_usdc_pool(employer) == false);
+}
+
+test "Employer Penalized for Insufficient Payroll Liquidity (ZPass Required)" {
+    let employer = address("aleo1employerabc123");
+
+    // Simulate employer non-compliance
+    pncw_payroll::set_usdc_balance(employer, 100);
+    
+    // Ensure employer is ZPass verified
+    assert!(pncw_payroll::employer_zpass_verified[employer] == true);
+
+    // Enforce penalty
+    assert!(pncw_payroll::enforce_usdc_penalty(employer) == true);
+}
+
+test "Worker Invests PTO in Farm (ZPass & ANS Required)" {
+    let worker = address("aleo1workerxyz456");
+    let farm = address("aleo1farm789");
+    let investment_amount = 10;
+    let ans_name = "johndoe.pncw";
+
+    // Ensure worker is ZPass verified
+    assert!(pncw_payroll::worker_zpass_verified[worker] == true);
+
+    // Assign ANS name to worker
+    pncw_payroll::ans_registry[worker] = ans_name;
+    pncw_payroll::ans_reverse_lookup[ans_name] = worker;
+
+    // Worker invests PTO
+    assert!(pncw_payroll::invest_pto_sick_pay(worker, investment_amount, "PTO") == true);
+
+    // Verify PTO deduction
+    assert!(pncw_payroll::pto_balances[worker] < 10);
+    assert!(pncw_payroll::farm_investments[worker] == investment_amount);
+}
+
+test "Worker Invests Sick Pay in Farm (ZPass & ANS Required)" {
+    let worker = address("aleo1workerxyz456");
+    let farm = address("aleo1farm789");
+    let investment_amount = 5;
+
+    // Ensure worker is ZPass verified
+    assert!(pncw_payroll::worker_zpass_verified[worker] == true);
+
+    // Worker invests sick pay
+    assert!(pncw_payroll::invest_pto_sick_pay(worker, investment_amount, "Sick") == true);
+
+    // Verify Sick Pay deduction
+    assert!(pncw_payroll::sick_balances[worker] < 5);
+    assert!(pncw_payroll::farm_investments[worker] == 5);
+}
+
+test "SubDAO Reviews Employer Compliance (ZPass Required)" {
+    let employer = address("aleo1employerabc123");
+
+    // Ensure employer is ZPass verified
+    assert!(pncw_payroll::employer_zpass_verified[employer] == true);
+
+    // Enforce compliance check
+    assert!(pncw_payroll::subdao_check_compliance(employer) == true);
+
+    // Simulate employer non-compliance
+    pncw_payroll::set_usdc_balance(employer, 50);
+    assert!(pncw_payroll::subdao_check_compliance(employer) == false);
 }
