@@ -1,77 +1,167 @@
+// 📌 PNiW Payroll Test Suite
 
-program pniw_payroll_test.aleo;
+import pniw_payroll.leo;
 
-import pniw_payroll.aleo;
+test "Process Payroll for ZPass Verified Worker" {
+    let worker = address("aleo1workerxyz456");
+    let employer = address("aleo1employerabc123");
+    let wage = 3500;
+    let hours_worked = 40;
+    let trust_contribution = 250;
 
-function test_payroll_submission() -> bool {
-    let employer_address = aleo1exampleemployer123;
-    let worker_address = aleo1workerexample123;
-    let payroll_amount = 110_000u64;
+    // Ensure worker is ZPass verified
+    assert!(pniw_payroll::worker_zpass_verified[worker] == true);
 
-    let payroll_status = pniw_payroll::submit_payroll(employer_address, worker_address, payroll_amount);
+    // Process payroll
+    assert!(pniw_payroll::process_pniw_payroll(worker, employer, wage, hours_worked, trust_contribution) == true);
 
-    assert(payroll_status == true, "PNiW Payroll submission failed");
-    return payroll_status;
+    // Verify payroll balances
+    assert!(pniw_payroll::payroll_records[worker] == wage);
+    assert!(pniw_payroll::pto_balances[worker] > 0);
+    assert!(pniw_payroll::sick_balances[worker] > 0);
+    assert!(pniw_payroll::trust_funds[worker] == trust_contribution);
 }
 
-function test_payroll_execution() -> bool {
-    let worker_address = aleo1workerexample123;
-    let execution_status = pniw_payroll::execute_payroll(worker_address);
+test "Withdraw Payroll Funds (ZPass & ANS Required)" {
+    let worker = address("aleo1workerxyz456");
+    let ans_name = "janedoe.pniw";
+    let withdrawal_amount = 1200;
 
-    assert(execution_status == true, "PNiW Payroll execution failed");
-    return execution_status;
+    // Ensure worker is ZPass verified
+    assert!(pniw_payroll::worker_zpass_verified[worker] == true);
+
+    // Assign ANS name to worker
+    pniw_payroll::ans_registry[worker] = ans_name;
+    pniw_payroll::ans_reverse_lookup[ans_name] = worker;
+
+    // Withdraw payroll
+    assert!(pniw_payroll::withdraw_pniw_payroll(worker, withdrawal_amount, false, false) == true);
+
+    // Verify deduction
+    assert!(pniw_payroll::payroll_records[worker] == 2300);
 }
 
-function test_employer_compliance() -> bool {
-    let employer_address = aleo1exampleemployer123;
-    let compliance_status = pniw_payroll::check_employer_compliance(employer_address);
+test "Withdraw PTO Balance (ZPass & ANS Required)" {
+    let worker = address("aleo1workerxyz456");
+    let ans_name = "janedoe.pniw";
+    let withdrawal_amount = 6;
 
-    assert(compliance_status == true, "Employer compliance check failed");
-    return compliance_status;
+    // Ensure worker is ZPass verified
+    assert!(pniw_payroll::worker_zpass_verified[worker] == true);
+
+    // Assign ANS name to worker
+    pniw_payroll::ans_registry[worker] = ans_name;
+    pniw_payroll::ans_reverse_lookup[ans_name] = worker;
+
+    // Withdraw PTO
+    assert!(pniw_payroll::withdraw_pniw_payroll(worker, withdrawal_amount, true, false) == true);
+
+    // Verify PTO deduction
+    assert!(pniw_payroll::pto_balances[worker] < 6);
 }
 
-function test_worker_payment_verification() -> bool {
-    let worker_address = aleo1workerexample123;
-    let payment_status = pniw_payroll::verify_worker_payment(worker_address);
+test "Withdraw Sick Leave Balance (ZPass & ANS Required)" {
+    let worker = address("aleo1workerxyz456");
+    let withdrawal_amount = 3;
 
-    assert(payment_status == true, "Worker payment verification failed");
-    return payment_status;
+    // Ensure worker is ZPass verified
+    assert!(pniw_payroll::worker_zpass_verified[worker] == true);
+
+    // Withdraw sick pay
+    assert!(pniw_payroll::withdraw_pniw_payroll(worker, withdrawal_amount, false, true) == true);
+
+    // Verify sick balance deduction
+    assert!(pniw_payroll::sick_balances[worker] < 3);
 }
 
-function test_unauthorized_payroll_prevention() -> bool {
-    let unauthorized_worker = aleo1unauthorizedworker123;
-    let execution_status = pniw_payroll::execute_payroll(unauthorized_worker);
+test "Employer Funds Payroll Reserves (ZPass Required)" {
+    let employer = address("aleo1employerabc123");
+    let deposit_amount = 6000;
 
-    assert(execution_status == false, "Unauthorized payroll transaction should not be allowed");
-    return !execution_status;
+    // Ensure employer is ZPass verified
+    assert!(pniw_payroll::employer_zpass_verified[employer] == true);
+
+    // Deposit payroll reserves
+    assert!(pniw_payroll::employer_deposit_usdc(employer, deposit_amount) == true);
+
+    // Verify balance update
+    assert!(pniw_payroll::get_usdc_balance(employer) == deposit_amount);
 }
 
-function test_batch_payroll_processing() -> bool {
-    let employer_address = aleo1exampleemployer123;
-    let workers = [
-        aleo1worker1example123,
-        aleo1worker2example123,
-        aleo1worker3example123
-    ];
-    let payroll_amount = 90_000u64;
+test "Ensure Employer Has Required Payroll Liquidity (ZPass Required)" {
+    let employer = address("aleo1employerabc123");
 
-    for worker in workers.iter() {
-        let submission_status = pniw_payroll::submit_payroll(employer_address, worker, payroll_amount);
-        assert(submission_status == true, "Batch payroll submission failed for worker");
-    }
+    // Ensure employer is ZPass verified
+    assert!(pniw_payroll::employer_zpass_verified[employer] == true);
 
-    for worker in workers.iter() {
-        let execution_status = pniw_payroll::execute_payroll(worker);
-        assert(execution_status == true, "Batch payroll execution failed for worker");
-    }
+    // Verify employer liquidity
+    assert!(pniw_payroll::verify_usdc_pool(employer) == true);
 
-    return true;
+    // Simulate underfunding
+    pniw_payroll::set_usdc_balance(employer, 100);
+    assert!(pniw_payroll::verify_usdc_pool(employer) == false);
 }
 
-function test_rollup_batch_processing() -> bool {
-    let employer_address = aleo1exampleemployer123;
-    let batch_status = pniw_payroll::process_rollup_batch(employer_address);
+test "Employer Penalized for Insufficient Payroll Liquidity (ZPass Required)" {
+    let employer = address("aleo1employerabc123");
 
-    assert(batch_status == true, "Rollup batch processing failed");
-    return batch_status;
+    // Simulate employer non-compliance
+    pniw_payroll::set_usdc_balance(employer, 100);
+    
+    // Ensure employer is ZPass verified
+    assert!(pniw_payroll::employer_zpass_verified[employer] == true);
+
+    // Enforce penalty
+    assert!(pniw_payroll::enforce_usdc_penalty(employer) == true);
+}
+
+test "Worker Invests PTO in Farm (ZPass & ANS Required)" {
+    let worker = address("aleo1workerxyz456");
+    let farm = address("aleo1farm789");
+    let investment_amount = 12;
+    let ans_name = "janedoe.pniw";
+
+    // Ensure worker is ZPass verified
+    assert!(pniw_payroll::worker_zpass_verified[worker] == true);
+
+    // Assign ANS name to worker
+    pniw_payroll::ans_registry[worker] = ans_name;
+    pniw_payroll::ans_reverse_lookup[ans_name] = worker;
+
+    // Worker invests PTO
+    assert!(pniw_payroll::invest_pniw_pto_sick_pay(worker, investment_amount, "PTO") == true);
+
+    // Verify PTO deduction
+    assert!(pniw_payroll::pto_balances[worker] < 12);
+    assert!(pniw_payroll::farm_investments[worker] == investment_amount);
+}
+
+test "Worker Invests Sick Pay in Farm (ZPass & ANS Required)" {
+    let worker = address("aleo1workerxyz456");
+    let farm = address("aleo1farm789");
+    let investment_amount = 7;
+
+    // Ensure worker is ZPass verified
+    assert!(pniw_payroll::worker_zpass_verified[worker] == true);
+
+    // Worker invests sick pay
+    assert!(pniw_payroll::invest_pniw_pto_sick_pay(worker, investment_amount, "Sick") == true);
+
+    // Verify Sick Pay deduction
+    assert!(pniw_payroll::sick_balances[worker] < 7);
+    assert!(pniw_payroll::farm_investments[worker] == 7);
+}
+
+test "SubDAO Reviews Employer Compliance (ZPass Required)" {
+    let employer = address("aleo1employerabc123");
+
+    // Ensure employer is ZPass verified
+    assert!(pniw_payroll::employer_zpass_verified[employer] == true);
+
+    // Enforce compliance check
+    assert!(pniw_payroll::subdao_check_compliance(employer) == true);
+
+    // Simulate employer non-compliance
+    pniw_payroll::set_usdc_balance(employer, 50);
+    assert!(pniw_payroll::subdao_check_compliance(employer) == false);
 }
