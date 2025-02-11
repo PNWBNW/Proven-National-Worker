@@ -70,7 +70,7 @@ async fn main() -> std::io::Result<()> {
         employer_taxes: Mutex::new(HashMap::new()),
     });
 
-    println!("🚀 Government API Server Running on http://127.0.0.1:8080");
+    println!("🚀 Government API Server Running on tbd");
 
     HttpServer::new(move || {
         App::new()
@@ -78,7 +78,7 @@ async fn main() -> std::io::Result<()> {
             .service(verify_tax)
             .service(pay_taxes)
     })
-    .bind("127.0.0.1:8080")?
+    .bind("tbd")?
     .run()
     .await
 }
