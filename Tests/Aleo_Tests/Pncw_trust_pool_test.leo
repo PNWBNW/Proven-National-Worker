@@ -1,10 +1,61 @@
-program pncw_trust_pool_test.aleo;
+// 📌 PNcW Trust Fund Test Suite
 
-import pncw_trust_pool.aleo;
+import pncw_trust_pool.leo;
 
-function test_trust_pool_contribution() -> bool {
-    let worker_address = aleo1workerexample123;
-    let contribution_amount = 10_000u64;
+test "PNcW Worker Deposits into Trust Fund (ZPass Required)" {
+    let worker = address("aleo1pncwworker456");
+    let deposit_amount = 500;
+
+    // Ensure worker is ZPass verified
+    assert!(pncw_trust_pool::worker_zpass_verified[worker] == true);
+
+    // Deposit funds
+    assert!(pncw_trust_pool::deposit_trust_fund(worker, deposit_amount) == true);
+
+    // Verify balance update
+    assert!(pncw_trust_pool::get_worker_balance(worker) == deposit_amount);
+}
+
+test "PNcW Worker Withdraws Funds (ZPass & ANS Required, Monthly Limit Enforced)" {
+    let worker = address("aleo1pncwworker456");
+    let ans_name = "janedoe.pncw";
+    let withdrawal_amount = 300;
+    let current_time = 1700000000;
+
+    // Ensure worker is ZPass verified
+    assert!(pncw_trust_pool::worker_zpass_verified[worker] == true);
+
+    // Assign ANS name to worker
+    pncw_trust_pool::ans_registry[worker] = ans_name;
+    pncw_trust_pool::ans_reverse_lookup[ans_name] = worker;
+
+    // Withdraw funds
+    assert!(pncw_trust_pool::withdraw_funds(worker, withdrawal_amount, current_time) == true);
+
+    // Verify deduction
+    assert!(pncw_trust_pool::get_worker_balance(worker) < 300);
+}
+
+test "PNcW Child Beneficiary Claims Funds (ZPass & ANS Required, Age 18+)" {
+    let worker = address("aleo1pncwworker456");
+    let child = address("aleo1pncwchild123");
+    let ans_name = "childjanedoe.pncw";
+    let age = 18;
+
+    // Ensure worker and child are ZPass verified
+    assert!(pncw_trust_pool::worker_zpass_verified[worker] == true);
+    assert!(pncw_trust_pool::worker_zpass_verified[child] == true);
+
+    // Assign ANS name to child
+    pncw_trust_pool::ans_registry[child] = ans_name;
+    pncw_trust_pool::ans_reverse_lookup[ans_name] = child;
+
+    // Register child as beneficiary
+    assert!(pncw_trust_pool::register_beneficiary(worker, child) == true);
+
+    // Claim funds
+    assert!(pncw_trust_pool::claim_funds_as_child(child, worker, age) == true);
+}ribution_amount = 10_000u64;
 
     let contribution_status = pncw_trust_pool::contribute_to_trust_pool(worker_address, contribution_amount);
 
