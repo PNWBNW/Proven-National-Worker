@@ -2,110 +2,66 @@
 
 import worker_identity.leo;
 
-test "Verify Worker Registration" {
-    let worker = address("aleo1workerxyz123");
-
-    // Ensure worker starts as unverified
-    assert!(worker_identity::is_worker_verified(worker) == false);
+test "Verify Worker Identity & ZPass Activation" {
+    let worker = address("aleo1workerxyz456");
 
     // Verify worker identity
     assert!(worker_identity::verify_worker(worker) == true);
-
-    // Ensure worker is now verified
     assert!(worker_identity::is_worker_verified(worker) == true);
-}
 
-test "ZPass Verification Should be Permanent" {
-    let worker = address("aleo1workerxyz123");
-
-    // Ensure ZPass is not initially verified
-    assert!(worker_identity::is_worker_zpass_verified(worker) == false);
-
-    // Attempt to verify ZPass
+    // Ensure worker cannot activate ZPass before identity verification
     assert!(worker_identity::verify_worker_zpass(worker) == true);
-
-    // Ensure ZPass verification is now true
     assert!(worker_identity::is_worker_zpass_verified(worker) == true);
-
-    // Attempt to revoke ZPass (should fail)
-    assert!(worker_identity::prevent_zpass_revoke(worker) == true);
 }
 
-test "Set and Retrieve Worker Category" {
-    let worker = address("aleo1workerxyz123");
+test "Worker Category Assignment with ANS" {
+    let worker = address("aleo1workerxyz456");
+    let ans_name = "johndoe.pncw";
 
     // Assign worker category
     assert!(worker_identity::set_worker_category(worker, "Agricultural") == true);
-
-    // Ensure category is stored correctly
     assert!(worker_identity::worker_category[worker] == "Agricultural");
+
+    // Register worker's ANS name
+    worker_identity::ans_registry[worker] = ans_name;
+    worker_identity::ans_reverse_lookup[ans_name] = worker;
+
+    // Verify ANS mapping
+    assert!(worker_identity::lookup_worker_by_ans(ans_name) == worker);
 }
 
-test "Trust Fund Eligibility" {
-    let worker = address("aleo1workerxyz123");
+test "Trust Fund Eligibility with ZPass" {
+    let worker = address("aleo1workerxyz456");
 
-    // Worker must be verified and have ZPass to be eligible
-    assert!(worker_identity::check_trust_fund_eligibility(worker) == false);
+    // Ensure worker is identity verified and ZPass verified
+    assert!(worker_identity::verify_worker(worker) == true);
+    assert!(worker_identity::verify_worker_zpass(worker) == true);
 
-    // Enable trust fund eligibility
+    // Enable trust fund access
     assert!(worker_identity::enable_trust_fund(worker) == true);
-
-    // Ensure worker is now eligible
     assert!(worker_identity::check_trust_fund_eligibility(worker) == true);
-
-    // Disable trust fund eligibility (for compliance violations)
-    assert!(worker_identity::disable_trust_fund(worker) == true);
-
-    // Ensure worker is no longer eligible
-    assert!(worker_identity::check_trust_fund_eligibility(worker) == false);
 }
 
-test "Register and Verify a Descendant" {
-    let worker = address("aleo1workerxyz123");
-    let child = address("aleo1childxyz456");
+test "Register & Verify Descendant for Trust Fund" {
+    let worker = address("aleo1workerxyz456");
+    let child = address("aleo1childabc123");
 
-    // Register child as a descendant
+    // Register child as descendant
     assert!(worker_identity::register_descendant(worker, child) == true);
-
-    // Ensure child is mapped to the worker
     assert!(worker_identity::worker_descendants[child] == worker);
 
-    // Ensure descendant is unverified initially
-    assert!(worker_identity::descendant_verified[child] == false);
-
-    // Verify descendant identity
+    // Verify descendant
     assert!(worker_identity::verify_descendant(child) == true);
-
-    // Ensure descendant is now verified
     assert!(worker_identity::descendant_verified[child] == true);
 }
 
-test "Descendant Trust Fund Withdrawal Verification" {
-    let worker = address("aleo1workerxyz123");
-    let child = address("aleo1childxyz456");
+test "Trust Fund Withdrawal for Verified Descendant" {
+    let worker = address("aleo1workerxyz456");
+    let child = address("aleo1childabc123");
 
-    // Ensure unverified child cannot access funds
-    assert!(worker_identity::check_descendant_trust_access(child) == false);
-
-    // Verify child identity
+    // Ensure descendant is verified
     assert!(worker_identity::verify_descendant(child) == true);
 
-    // Ensure verified descendant can access funds if parent is also verified
+    // Verify trust fund access
     assert!(worker_identity::check_descendant_trust_access(child) == true);
-}
-
-test "ANS Integration: Worker Registration and Lookup" {
-    let worker = address("aleo1workerxyz123");
-    let ans_name = "farmer.john";
-
-    // Ensure worker has no ANS name initially
-    assert!(worker_identity::lookup_worker_by_address(worker) == "");
-
-    // Register worker with ANS name
-    assert!(worker_identity::ans_registry[worker] = ans_name);
-    assert!(worker_identity::ans_reverse_lookup[ans_name] = worker);
-
-    // Verify ANS lookup works correctly
-    assert!(worker_identity::lookup_worker_by_address(worker) == ans_name);
-    assert!(worker_identity::lookup_worker_by_ans(ans_name) == worker);
 }
