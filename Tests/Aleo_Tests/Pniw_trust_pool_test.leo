@@ -1,46 +1,58 @@
-program pniw_trust_pool_test.aleo;
+// 📌 PNiW Trust Fund Test Suite
 
-import pniw_trust_pool.aleo;
+import pniw_trust_pool.leo;
 
-function test_trust_pool_contribution() -> bool {
-    let worker_address = aleo1workerexample456;
-    let contribution_amount = 10_000u64;
+test "PNiW Worker Deposits into Trust Fund (ZPass Required)" {
+    let worker = address("aleo1pniwworker789");
+    let deposit_amount = 750;
 
-    let contribution_status = pniw_trust_pool::contribute_to_trust_pool(worker_address, contribution_amount);
+    // Ensure worker is ZPass verified
+    assert!(pniw_trust_pool::worker_zpass_verified[worker] == true);
 
-    assert(contribution_status == true, "Trust pool contribution failed");
-    return contribution_status;
+    // Deposit funds
+    assert!(pniw_trust_pool::deposit_trust_fund(worker, deposit_amount) == true);
+
+    // Verify balance update
+    assert!(pniw_trust_pool::get_worker_balance(worker) == deposit_amount);
 }
 
-function test_trust_pool_balance() -> bool {
-    let worker_address = aleo1workerexample456;
-    let balance = pniw_trust_pool::get_trust_pool_balance(worker_address);
+test "PNiW Worker Withdraws Funds (ZPass & ANS Required, Monthly Limit Enforced)" {
+    let worker = address("aleo1pniwworker789");
+    let ans_name = "janedoe.pniw";
+    let withdrawal_amount = 450;
+    let current_time = 1700005000;
 
-    assert(balance > 0, "Trust pool balance retrieval failed");
-    return true;
+    // Ensure worker is ZPass verified
+    assert!(pniw_trust_pool::worker_zpass_verified[worker] == true);
+
+    // Assign ANS name to worker
+    pniw_trust_pool::ans_registry[worker] = ans_name;
+    pniw_trust_pool::ans_reverse_lookup[ans_name] = worker;
+
+    // Withdraw funds
+    assert!(pniw_trust_pool::withdraw_funds(worker, withdrawal_amount, current_time) == true);
+
+    // Verify deduction
+    assert!(pniw_trust_pool::get_worker_balance(worker) < 450);
 }
 
-function test_child_fund_redemption() -> bool {
-    let worker_address = aleo1workerexample456;
-    let child_address = aleo1childexample456;
-    let withdrawal_amount = 5_000u64;
-    let kyc_verified = true;
+test "PNiW Child Beneficiary Claims Funds (ZPass & ANS Required, Age 18+)" {
+    let worker = address("aleo1pniwworker789");
+    let child = address("aleo1pniwchild456");
+    let ans_name = "childjanedoe.pniw";
+    let age = 18;
 
-    let redemption_status = pniw_trust_pool::redeem_funds(worker_address, child_address, withdrawal_amount, kyc_verified);
+    // Ensure worker and child are ZPass verified
+    assert!(pniw_trust_pool::worker_zpass_verified[worker] == true);
+    assert!(pniw_trust_pool::worker_zpass_verified[child] == true);
 
-    assert(redemption_status == true, "Child fund redemption failed");
-    return redemption_status;
-}
+    // Assign ANS name to child
+    pniw_trust_pool::ans_registry[child] = ans_name;
+    pniw_trust_pool::ans_reverse_lookup[ans_name] = child;
 
-function test_partial_withdrawal_approval() -> bool {
-    let worker_address = aleo1workerexample456;
-    let withdrawal_amount = 2_000u64;
-    let approver1 = aleo1approverexample4;
-    let approver2 = aleo1approverexample5;
-    let approver3 = aleo1approverexample6;
+    // Register child as beneficiary
+    assert!(pniw_trust_pool::register_beneficiary(worker, child) == true);
 
-    let approval_status = pniw_trust_pool::request_partial_withdrawal(worker_address, withdrawal_amount, approver1, approver2, approver3);
-
-    assert(approval_status == true, "Partial withdrawal approval failed");
-    return approval_status;
+    // Claim funds
+    assert!(pniw_trust_pool::claim_funds_as_child(child, worker, age) == true);
 }
