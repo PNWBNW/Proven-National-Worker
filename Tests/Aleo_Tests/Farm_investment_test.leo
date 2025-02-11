@@ -1,54 +1,77 @@
-program farm_investment_test.aleo;
+// 📌 Farm Investment Test Suite
 
-import farm_investment.aleo;
+import farm_investment.leo;
 
-function test_farm_investment_submission() -> bool {
-    let investor_address = aleo1investorexample123;
-    let investment_amount = 50_000u64;
+test "Worker Invests in Farm (ZPass & ANS Required)" {
+    let worker = address("aleo1workerxyz456");
+    let farm = address("aleo1farm789");
+    let investment_amount = 500;
+    let ans_name = "johndoe.pncw";
 
-    let submission_status = farm_investment::submit_investment(investor_address, investment_amount);
+    // Ensure worker is ZPass verified
+    assert!(farm_investment::worker_zpass_verified[worker] == true);
 
-    assert(submission_status == true, "Farm investment submission failed");
-    return submission_status;
+    // Assign ANS name to worker
+    farm_investment::ans_registry[worker] = ans_name;
+    farm_investment::ans_reverse_lookup[ans_name] = worker;
+
+    // Worker invests in farm
+    assert!(farm_investment::invest_in_farm(worker, farm, investment_amount) == true);
+    assert!(farm_investment::worker_farm_investment[worker] == investment_amount);
 }
 
-function test_farm_investment_approval() -> bool {
-    let investor_address = aleo1investorexample123;
-    let approval_status = farm_investment::approve_investment(investor_address);
+test "Worker Withdraws Farm Investment (ZPass & ANS Required)" {
+    let worker = address("aleo1workerxyz456");
+    let ans_name = "johndoe.pncw";
+    let withdrawal_amount = 200;
 
-    assert(approval_status == true, "Farm investment approval failed");
-    return approval_status;
+    // Ensure worker is ZPass verified
+    assert!(farm_investment::worker_zpass_verified[worker] == true);
+
+    // Assign ANS name to worker
+    farm_investment::ans_registry[worker] = ans_name;
+    farm_investment::ans_reverse_lookup[ans_name] = worker;
+
+    // Withdraw farm investment
+    assert!(farm_investment::withdraw_farm_investment(worker, withdrawal_amount) == true);
 }
 
-function test_farm_investment_payout() -> bool {
-    let investor_address = aleo1investorexample123;
-    let payout_status = farm_investment::process_payout(investor_address);
+test "Convert Investment to RWA NFT (ZPass & ANS Required)" {
+    let worker = address("aleo1workerxyz456");
+    let farm = address("aleo1farm789");
+    let nft_id = 12345;
+    let ans_name = "johndoe.pncw";
 
-    assert(payout_status == true, "Farm investment payout failed");
-    return payout_status;
+    // Ensure worker is ZPass verified
+    assert!(farm_investment::worker_zpass_verified[worker] == true);
+
+    // Assign ANS name to worker
+    farm_investment::ans_registry[worker] = ans_name;
+    farm_investment::ans_reverse_lookup[ans_name] = worker;
+
+    // Convert farm investment to NFT
+    assert!(farm_investment::convert_investment_to_nft(worker, farm, nft_id) == true);
+    assert!(farm_investment::worker_nft_holdings[worker] == nft_id);
 }
 
-function test_farm_investment_blacklist() -> bool {
-    let investor_address = aleo1investorexample123;
-    let blacklist_status = farm_investment::is_blacklisted(investor_address);
+test "Verify Farm Merkle Proof" {
+    let farm = address("aleo1farm789");
+    let merkle_root = 987654321;
 
-    assert(blacklist_status == false, "Investor should not be blacklisted");
-    return blacklist_status;
+    // Register Merkle proof for farm
+    assert!(farm_investment::register_farm_merkle(farm, merkle_root) == true);
+
+    // Verify Merkle proof
+    assert!(farm_investment::verify_farm_merkle(farm, merkle_root) == true);
 }
 
-function test_monthly_payout_enforcement() -> bool {
-    let investor_address = aleo1investorexample123;
-    let last_payout_timestamp = farm_investment::get_last_payout_timestamp(investor_address);
-    let current_timestamp = get_current_timestamp();
+test "Farm Certification Verification (API + ZPass Required)" {
+    let farm = address("aleo1farm789");
+    let certification = "USDA Organic";
 
-    assert!(current_timestamp >= last_payout_timestamp + 2_592_000, "Payout can only be processed once per month");
+    // Ensure farm certification is registered
+    assert!(farm_investment::register_farm_certification(farm, certification) == true);
 
-    let payout_status = farm_investment::process_payout(investor_address);
-    assert(payout_status == true, "Monthly payout processing failed");
-
-    return payout_status;
-}
-
-function get_current_timestamp() -> u64 {
-    return get_block_timestamp();
+    // Verify farm certification
+    assert!(farm_investment::get_farm_certification(farm) == certification);
 }
