@@ -112,7 +112,7 @@ async fn main() -> std::io::Result<()> {
         last_network_latency: Mutex::new(200),
     });
 
-    println!("🚀 Merkle Decision API Server Running on http://127.0.0.1:8081");
+    println!("🚀 Merkle Decision API Server Running on tbd");
 
     HttpServer::new(move || {
         App::new()
@@ -121,7 +121,7 @@ async fn main() -> std::io::Result<()> {
             .service(update_merkle_root)
             .service(update_network_status)
     })
-    .bind("127.0.0.1:8081")?
+    .bind("tbd")?
     .run()
     .await
       }
