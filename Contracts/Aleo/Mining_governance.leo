@@ -1,7 +1,8 @@
-program mining_investment.leo;
+program mining_governance.leo;
 
 import compliance_tracking.leo;
-import payroll_contract.leo;
+import pncw_payroll.leo;
+import pniw_payroll.leo;
 import subdao_treasury.leo;
 import oversight_dao.leo;
 
@@ -47,17 +48,20 @@ function distribute_mining_rewards() -> bool {
         let subdao_reward = (total_mining_rewards * SUBDAO_SHARE) / 100;
         let oversight_reward = (total_mining_rewards * OVERSIGHT_DAO_SHARE) / 100;
 
-        // Transfer rewards
-        payroll_contract.deposit_worker_rewards(worker_reward);
+        // ✅ Transfer rewards to workers
+        pncw_payroll.distribute_mining_rewards(worker_reward);
+        pniw_payroll.distribute_mining_rewards(worker_reward);
+
+        // ✅ Allocate to governance
         subdao_treasury.deposit(subdao_reward);
         oversight_dao.deposit(oversight_reward);
 
-        // Send farm owner rewards
+        // ✅ Send farm owner rewards
         let success = transfer_to_farm(farm, farm_reward);
         ensure!(success, "Failed to transfer mining rewards to farm.");
     }
 
-    // Reset mining rewards pool after distribution
+    // ✅ Reset mining rewards pool after distribution
     mining_rewards_pool = 0;
     return true;
 }
