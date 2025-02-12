@@ -1,4 +1,4 @@
-program pncw_payroll.leo;
+program pncw_payroll.aleo;
 
 import mining_investment.leo;
 
@@ -92,7 +92,7 @@ function distribute_mining_rewards(worker: address, amount: u64) -> bool {
 function withdraw_payroll(worker: address, amount: u64, include_pto: bool, include_sick: bool, include_mining: bool) -> bool {
     ensure!(verify_usdc_pool(worker), "Employer's USDC pool is insufficient for withdrawals");
 
-    let total_balance = payroll_records[worker];
+    let mut total_balance = payroll_records[worker];
 
     if include_pto {
         total_balance += pto_balances[worker];
@@ -139,4 +139,14 @@ function lookup_worker_by_address(worker: address) -> string {
 function lookup_worker_by_ans(ans_name: string) -> address {
     ensure!(ans_reverse_lookup.contains(ans_name), "ANS name not found");
     return ans_reverse_lookup[ans_name];
+}
+
+/// @dev Verifies that employer PTO & Sick Pay reserves are funded
+function verify_employer_funding(employer: address) -> bool {
+    return employer_pto_funds.get(employer).unwrap_or(0) > 0 && employer_sick_funds.get(employer).unwrap_or(0) > 0;
+}
+
+/// @dev Verifies that employer has sufficient USDC liquidity pool
+function verify_usdc_pool(employer: address) -> bool {
+    return minimum_usdc_pool.get(employer).unwrap_or(0) > 0;
 }
