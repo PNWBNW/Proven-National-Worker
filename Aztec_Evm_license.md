@@ -18,7 +18,7 @@ Scope: This addendum applies to all adaptations, duplications, and modifications
 
 1.1 Exclusive Rights
 
-All original smart contract logic, governance mechanisms, payroll structures, trust fund models, and SubDAO implementations are the exclusive intellectual property of the PNW project and Joshua D. Day.
+All original smart contract logic, governance mechanisms, payroll structures, trust fund models, and SubDAO implementations are the exclusive intellectual property of the PNW project (Joshua D. Day).
 
 The adaptation of these mechanisms for Aztec’s Noir framework, Ethereum Layer 2 environments, or related ZK-based rollups remains protected under this proprietary license.
 
