@@ -1,114 +1,94 @@
-// Aztec Payroll Compliance Tracking for PNW
-// Ensures payroll tax compliance, employer reserves, and worker trust funds.
+program compliance_tracking.leo;
 
-struct ComplianceRecord {
-    employer_id: Field,
-    subdao_id: Field,
-    total_payroll: u64,
-    total_tax_withheld: u64,
-    expected_tax: u64,
-    pto_funds: u64,
-    sick_funds: u64,
-    usdc_reserves: u64,
-    min_usdc_required: u64,
-    timestamp: u64,
+mapping employer_compliance_status: mapping(address, bool);  // Employer compliance tracking
+mapping employer_pto_funds: mapping(address, u64);          // Employer-held PTO funds
+mapping employer_sick_funds: mapping(address, u64);         // Employer-held Sick funds
+mapping employer_usdc_reserves: mapping(address, u64);      // Employer USDC pool
+mapping minimum_usdc_pool: mapping(address, u64);          // Minimum required liquidity per employer
+mapping trust_fund_balances: mapping(address, u64);        // Worker trust fund balances
+mapping payroll_balances: mapping(address, u64);           // Worker payroll balances
+
+// Struct for tracking employer compliance details
+struct EmployerCompliance {
+    employer: address,
+    compliant: bool,
+    last_check: u64,
 }
 
-// Function to track payroll compliance
-fn track_compliance(employer_id: Field, subdao_id: Field, total_payroll: u64, total_tax_withheld: u64) -> ComplianceRecord {
-    // Fetch employer obligations
-    let expected_tax = compute_expected_tax(employer_id, total_payroll);
-    let pto_funds = get_pto_funds(employer_id);
-    let sick_funds = get_sick_funds(employer_id);
-    let usdc_reserves = get_usdc_reserves(employer_id);
-    let min_usdc_required = get_min_usdc_requirement(employer_id);
-
-    // Create compliance record
-    let compliance_record = ComplianceRecord {
-        employer_id,
-        subdao_id,
-        total_payroll,
-        total_tax_withheld,
-        expected_tax,
-        pto_funds,
-        sick_funds,
-        usdc_reserves,
-        min_usdc_required,
-        timestamp: get_current_timestamp(),
-    };
-
-    // Verify employer compliance
-    enforce_compliance(compliance_record);
-
-    // Emit compliance tracking event
-    emit compliance_event(employer_id, subdao_id, total_payroll, total_tax_withheld, expected_tax, pto_funds, sick_funds, usdc_reserves, min_usdc_required);
-
-    return compliance_record;
-}
-
-// Function to enforce compliance and penalize non-compliant employers
-fn enforce_compliance(record: ComplianceRecord) {
-    if record.total_tax_withheld < record.expected_tax {
-        apply_penalty(record.employer_id, record.expected_tax - record.total_tax_withheld);
-    }
-    if record.pto_funds < 0 || record.sick_funds < 0 {
-        apply_penalty(record.employer_id, 500);  // Example: $500 fine for PTO/Sick Pay deficits
-    }
-    if record.usdc_reserves < record.min_usdc_required {
-        apply_penalty(record.employer_id, 1000); // Example: $1,000 fine for USDC pool violations
-    }
-}
-
-// Function to apply penalties
-fn apply_penalty(employer_id: Field, penalty_amount: u64) {
-    deduct_funds(employer_id, penalty_amount);
-    send_funds(subdao_treasury(), penalty_amount);
-}
-
-// Function to check worker trust fund compliance
-fn check_trust_fund_compliance(worker_id: Field) -> bool {
-    assert(get_trust_fund_balance(worker_id) >= 0, "Worker trust fund balance deficit detected");
+// Ensure employer has properly funded PTO/Sick Pay pools
+function verify_employer_funding(employer: address) -> bool {
+    ensure!(employer_pto_funds[employer] >= 0, "Employer PTO fund deficit detected");
+    ensure!(employer_sick_funds[employer] >= 0, "Employer Sick Pay fund deficit detected");
     return true;
 }
 
-// Function to block PTO/Sick Pay bridging attempts
-fn attempt_bridge_pto_or_sick_pay(worker_id: Field) {
-    emit invalid_bridge_attempt(worker_id, "PTO/Sick Pay cannot be bridged. Withdraw only on Aleo.");
+// Ensure employer maintains the required USDC liquidity
+function verify_usdc_pool(employer: address) -> bool {
+    let required_usdc = minimum_usdc_pool[employer];
+    let employer_balance = employer_usdc_reserves[employer];
+
+    ensure!(employer_balance >= required_usdc, "Employer USDC pool is insufficient");
+    return true;
 }
 
-// Utility functions
-fn get_tax_rate(employer_id: Field) -> u64 {
-    return query_tax_rate(employer_id);
+// Employer penalties for noncompliance
+function employer_penalty(employer: address, penalty_amount: u64) {
+    ensure!(penalty_amount > 0, "Penalty must be greater than zero");
+
+    // Deduct from employer funds
+    employer_pto_funds[employer] -= penalty_amount / 2;
+    employer_sick_funds[employer] -= penalty_amount / 2;
+    employer_usdc_reserves[employer] -= penalty_amount;
+
+    // Mark employer as non-compliant
+    employer_compliance_status[employer] = false;
 }
 
-fn get_pto_funds(employer_id: Field) -> u64 {
-    return query_pto_funds(employer_id);
+// SubDAO function to check employer compliance and enforce penalties
+function subdao_check_compliance(employer: address) -> bool {
+    let pto_funding = employer_pto_funds[employer];
+    let sick_funding = employer_sick_funds[employer];
+    let usdc_reserves = employer_usdc_reserves[employer];
+
+    if pto_funding < 0 || sick_funding < 0 || usdc_reserves < minimum_usdc_pool[employer] {
+        employer_penalty(employer, 500); // Example: $500 penalty for noncompliance
+        return false;
+    }
+
+    employer_compliance_status[employer] = true;
+    return true;
 }
 
-fn get_sick_funds(employer_id: Field) -> u64 {
-    return query_sick_funds(employer_id);
+// Function to check trust fund balance compliance
+function check_trust_fund_compliance(worker: address) -> bool {
+    ensure!(trust_fund_balances[worker] >= 0, "Worker trust fund balance deficit detected");
+    return true;
 }
 
-fn get_usdc_reserves(employer_id: Field) -> u64 {
-    return query_usdc_reserves(employer_id);
+// Function to block invalid PTO/Sick Pay bridging attempts
+function attempt_bridge_pto_or_sick_pay(worker: address) {
+    env::emit("InvalidBridgeAttempt: PTO/Sick Pay cannot be bridged. Withdraw only on Aleo.");
 }
 
-fn get_min_usdc_requirement(employer_id: Field) -> u64 {
-    return query_min_usdc_requirement(employer_id);
+// Function to verify compliance for all employer-related obligations
+function verify_full_compliance(employer: address) -> bool {
+    ensure!(verify_employer_funding(employer), "Employer PTO/Sick Pay reserves insufficient");
+    ensure!(verify_usdc_pool(employer), "Employer USDC pool below required threshold");
+    ensure!(subdao_check_compliance(employer), "Employer compliance check failed");
+    return true;
 }
 
-fn get_trust_fund_balance(worker_id: Field) -> u64 {
-    return query_trust_fund_balance(worker_id);
+// Utility function to update employer USDC balance
+function update_usdc_balance(employer: address, amount: u64) {
+    employer_usdc_reserves[employer] = amount;
 }
 
-fn deduct_funds(employer_id: Field, amount: u64) {
-    transfer_from(employer_id, amount);
+// Utility function to check employer compliance status
+function get_compliance_status(employer: address) -> bool {
+    return employer_compliance_status[employer];
 }
 
-fn send_funds(recipient: Field, amount: u64) {
-    transfer_to(recipient, amount);
-}
-
-fn subdao_treasury() -> Field {
-    return get_subdao_treasury();
+// Utility function to update minimum USDC pool requirements
+function set_minimum_usdc_pool(employer: address, amount: u64) {
+    minimum_usdc_pool[employer] = amount;
 }
