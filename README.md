@@ -39,6 +39,29 @@ The **PNW Payroll System** ensures **trustless, automated worker payments** with
 
 ---
 
+## State-Based SubDAOs for Tax & Regulatory Compliance
+
+To streamline payroll tax compliance and regulatory adherence within the U.S., **SubDAOs are initially separated by state**. Each state-based SubDAO will handle worker payroll, tax reporting, and compliance based on its respective state’s labor and taxation requirements.
+
+To facilitate this structure, **ANS subDomains are being created for each state**, such as:
+
+- `wa001_subdao.pnw.ans` (Washington)
+- `or001_subdao.pnw.ans` (Oregon)
+- `tx001_subdao.pnw.ans` (Texas)  
+- …and so on for all 50 states and U.S. territories.
+
+These SubDAOs ensure that tax reporting and payroll execution remain compliant with **state-specific regulations**, while maintaining a decentralized governance structure.
+
+### Future Expansion & County-Level SubDAOs
+- Initially, each state will have **one primary SubDAO** (e.g., `wa001_subdao.pnw.ans` for Washington).  
+- **If membership capacity reaches a set threshold (e.g., 90% full),** a new SubDAO will be created (e.g., `wa002_subdao.pnw.ans`).  
+- Members will be distributed strategically to ensure **no SubDAO is left with too few members.**  
+- In the future, if necessary, **county-level SubDAOs** may be introduced for finer tax/regulatory alignment.
+
+This structure allows for **scalable growth**, ensuring **workers, employers, and governance bodies operate within compliant tax and regulatory frameworks** while keeping decentralized oversight intact.
+
+---
+
 ## 🔹 Mining Operations & Proof-of-Work Rewards
 The **PNW Mining Pool** enables **farm-owned mining rigs** to participate in Aleo’s **Proof of Succinct Work (PoSW)**, ensuring decentralized mining and fair reward distribution.
 
