@@ -10,10 +10,10 @@ mapping employer_compliance:
 
 mapping worker_wallets:
     key address as field;
-    value (address, u8) as record; // (Wallet Address, Network Type) → 1 = EVM, 2 = Stellar
+    value (address, u8) as record; // (Wallet Address, Network Type) → 2 = Stellar, 3 = Noir
 
 function register_worker_wallet(public worker: address, public wallet: address, public network: u8) -> bool {
-    ensure(network == 1u8 || network == 2u8, "Invalid network type (1 = EVM, 2 = Stellar)");
+    ensure(network == 2u8 || network == 3u8, "Invalid network type (2 = Stellar, 3 = Noir)");
     worker_wallets.insert(worker, (wallet, network));
     return true;
 }
@@ -30,10 +30,10 @@ function bridge_payroll(public employer: address, public worker: address, public
 
     employer_balances.insert(employer, current_balance - amount);
 
-    if network == 1u8 {
-        emit event("PayrollBridgedToEVM", employer, worker, wallet, amount);
-    } else if network == 2u8 {
+    if network == 2u8 {
         emit event("PayrollBridgedToStellar", employer, worker, wallet, amount);
+    } else if network == 3u8 {
+        emit event("PayrollBridgedToNoir", employer, worker, wallet, amount);
     }
     
     return true;
