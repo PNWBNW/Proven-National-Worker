@@ -46,7 +46,7 @@ The **PNW System** is a **decentralized smart contract suite** designed to provi
 ✔ **Mining rewards distribution & employer tax compliance**  
 ✔ **Regulatory API enforcement & SubDAO governance**  
 
-PNW operates across **Aleo, Stellar Soroban, and EVM-based chains**, ensuring **multi-chain payroll compatibility**.
+PNW operates across **Aleo, Aztec Nior, and Stellar Soroban**, ensuring **multi-chain payroll compatibility**.
 
 ---
 
@@ -58,63 +58,12 @@ PNW operates across **Aleo, Stellar Soroban, and EVM-based chains**, ensuring **
 ✅ **Aleo Mining Pool & Reward System** – Farm-owned Aleo mining rigs contribute to **PoSW mining**, earning rewards via **proof aggregation**.  
 ✅ **Zero-Knowledge (ZK) Verification** – Uses **ZPass & Merkle proofs** to validate worker identity, tax compliance, and mining contributions.  
 ✅ **Aleo Naming Service (ANS) Integration** – Workers can link **human-readable ANS identities** to their accounts.  
-✅ **Multi-Chain Bridging** – Payroll can settle via **Aleo, Stellar, or EVM rollups**, **minimizing gas fees**.  
+✅ **Multi-Chain Bridging** – Payroll can settle via **Aleo, Aztec, or Stellar**, **minimizing gas fees**.  
 ✅ **Regulatory Compliance** – Employer taxes are **automatically verified via government API integration**.  
 ✅ **SubDAO Governance** – Workers vote on **investment choices**, and DAOs **enforce compliance penalties**.  
 
 ---
 
-## State-Based SubDAOs for Tax & Regulatory Compliance
-
-To streamline payroll tax compliance and regulatory adherence within the U.S., **SubDAOs are initially separated by state**. Each state-based SubDAO will handle worker payroll, tax reporting, and compliance based on its respective state’s labor and taxation requirements.
-
-To facilitate this structure, **ANS subDomains are being created for each state**, such as:
-
-- `wa001_subdao.pnw.ans` (Washington)
-- `or001_subdao.pnw.ans` (Oregon)
-- `tx001_subdao.pnw.ans` (Texas)  
-- …and so on for all 50 states and U.S. territories.
-
-These SubDAOs ensure that tax reporting and payroll execution remain compliant with **state-specific regulations**, while maintaining a decentralized governance structure.
-
-### Future Expansion & County-Level SubDAOs
-- Initially, each state will have **one primary SubDAO** (e.g., `wa001_subdao.pnw.ans` for Washington).  
-- **If membership capacity reaches a set threshold (e.g., 90% full),** a new SubDAO will be created (e.g., `wa002_subdao.pnw.ans`).  
-- Members will be distributed strategically to ensure **no SubDAO is left with too few members.**  
-- In the future, if necessary, **county-level SubDAOs** may be introduced for finer tax/regulatory alignment.
-
-This structure allows for **scalable growth**, ensuring **workers, employers, and governance bodies operate within compliant tax and regulatory frameworks** while keeping decentralized oversight intact.
-
----
-
-## 🔹 Mining Operations & Proof-of-Work Rewards
-The **PNW Mining Pool** enables **farm-owned mining rigs** to participate in Aleo’s **Proof of Succinct Work (PoSW)**, ensuring decentralized mining and fair reward distribution.
-
-### 🔸 PNW Mining Pool Features
-✔ **Farm-Owned Mining** – Agricultural farms **operate Aleo miners** to secure the network and generate income.  
-✔ **Mining Pool Smart Contract** – Miners **aggregate proofs** for optimized block completion, improving mining speed and efficiency.  
-✔ **Fair Reward Distribution** – Mining payouts are allocated as follows:  
-   - **40% → Farm Owners**  
-   - **30% → Workers (Payroll Bonus)**  
-   - **20% → SubDAOs (Governance & Incentives)**  
-   - **10% → OversightDAO (Monitoring & Enforcement)**  
-✔ **Batch Proof Aggregation** – Multiple farms submit ZK proofs, **reducing redundant work and boosting mining speed**.  
-✔ **Worker Mining Rewards** – Workers **receive mining income** alongside their payroll.  
-
-This system ensures **farms benefit from mining operations** while supporting the **PNW ecosystem**.
-
----
-
-## 🔹 RWA & Fractional NFT (frNFT) Marketplace Readiness
-The **PNW Marketplace** will support **fractional RWA NFTs (frNFTs)** tied to **farm investments & agricultural products**.
-
-### 🔸 How frNFTs Work
-✔ **Farm Investment RWA NFTs** – When workers **invest in farm projects**, their **stake is tokenized as an frNFT**.  
-✔ **Fractional Ownership** – frNFTs **represent shares** in a farm’s **livestock, crops, or agricultural goods**.  
-✔ **Marketplace Redemption** – Workers can **redeem their frNFTs for real-world assets or sell them** in the **PNW Decentralized Farmers Market**.  
-✔ **Trustless Exchange** – The marketplace **ensures on-chain verification of all transactions**, **preventing speculation** and **false price inflation**.  
-
----
 
 ## 🔥 Contribution Guide
 Want to contribute? Follow these steps:  
