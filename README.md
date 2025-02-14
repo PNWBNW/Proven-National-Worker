@@ -64,21 +64,6 @@ PNW operates across **Aleo, Stellar Soroban, and EVM-based chains**, ensuring **
 
 ---
 
-## 💰 Payroll Processing & Trust Funds
-The **PNW Payroll System** ensures **trustless, automated worker payments** with **compliance-backed security**.
-
-### 🔹 Payroll System Features
-✔ **Batch Payroll Execution** – Reduces transaction costs through **rollup processing**.  
-✔ **Multi-Chain Support** – Workers can **receive payroll via Aleo, Stellar, or EVM rollups**.  
-✔ **Automated Tax Withholding** – Employer taxes are **verified & withheld at the time of payroll processing**.  
-✔ **Worker Trust Fund Deposits** – A portion of **unclaimed payroll automatically accrues in worker trust funds**.  
-✔ **Payroll Gas Fees** –  
-   - **On Aleo:** Covered by **SubDAOs**.  
-   - **On EVM Chains:** Paid by **workers (with rollup batch processing to minimize costs).**  
-✔ **Mining Rewards as Payroll Bonus** – Workers receive **a share of mining pool earnings**.  
-
----
-
 ## State-Based SubDAOs for Tax & Regulatory Compliance
 
 To streamline payroll tax compliance and regulatory adherence within the U.S., **SubDAOs are initially separated by state**. Each state-based SubDAO will handle worker payroll, tax reporting, and compliance based on its respective state’s labor and taxation requirements.
@@ -136,16 +121,6 @@ Want to contribute? Follow these steps:
 1️⃣ **Fork the repository**  
 2️⃣ **Create a feature branch**  
 3️⃣ **Submit a pull request (PR)**  
-
----
-
-## 🚀 Development Roadmap
-✔ **Aleo, Stellar, & EVM Payroll**  
-✔ **ANS & ZPass Integration**  
-✔ **Trust Funds & PTO**  
-🔄 **Fractional NFT Expansion (In Progress)**  
-🔜 **Cross-Chain Payroll Settlement**  
-🔜 **Optimized Proof-of-Work Mining Contracts**  
 
 ---
 
