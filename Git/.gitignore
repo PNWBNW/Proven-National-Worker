@@ -28,18 +28,18 @@ pnpm-debug.log*
 *.log
 
 # ==========================
-# 🔹 Solidity & Hardhat Files
+# 🔹 Noir-Specific Ignores
 # ==========================
-artifacts/
-cache/
-coverage/
-typechain/
-.solcover.js
-.solcover.json
-gas-reports/
+target/
+noir/target/
+noir/build/
+noir/cache/
+noir/tests/.temp/
+noir/tests/*.noir_output/
+noir/tests/*.noir_witness/
 
 # ==========================
-# 🔹 Aleo-specific Ignores
+# 🔹 Aleo-Specific Ignores
 # ==========================
 aleo/target/
 aleo/build/
