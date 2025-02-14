@@ -12,9 +12,11 @@ mapping sick_leave_used: mapping(address, u64); // Tracks sick leave used in the
 mapping farm_investments: mapping(address, u64); // Tracks PTO/Sick Pay used for farm investment
 mapping worker_zpass_verified: mapping(address, bool); // Worker ZPass verification status
 
-// 🔹 New ANS Mappings
+// 🔹 ANS Mappings
 mapping ans_registry: mapping(address, string);  // Maps worker addresses to ANS names
 mapping ans_reverse_lookup: mapping(string, address);  // Maps ANS names to worker addresses
+mapping subDAO_ans_registry: mapping(address, string); // Maps SubDAO addresses to ANS names
+mapping subDAO_reverse_lookup: mapping(string, address); // Maps ANS names to SubDAOs
 
 // 📦 Structs
 struct WorkerPTO {
@@ -69,6 +71,13 @@ function accrue_pto_sick_pay(worker: address, employer: address, hours_worked: u
     employer_pto_funds[employer] -= pto_accrued;
 }
 
+// ✅ Function: Assign workers to SubDAOs using ANS
+function assign_worker_to_subDAO_by_ans(worker_ans: string, subDAO_ans: string) {
+    let worker = lookup_worker_by_ans(worker_ans);
+    let subDAO = lookup_subDAO_by_ans(subDAO_ans);
+    subDAO_members[worker] = subDAO;
+}
+
 // ✅ Function: Worker requests PTO payout
 function request_pto(worker: address, amount: u64) -> bool {
     ensure!(worker_zpass_verified.get_or_use(worker, false), "Worker must be ZPass verified to request PTO");
@@ -109,31 +118,6 @@ function request_sick_pay(worker: address, amount: u64, verified: bool) -> bool 
     return true;
 }
 
-// ✅ Function: Worker invests PTO/Sick Pay into farm investment (Only for Agricultural workers)
-function invest_pto_sick_pay(worker: address, amount: u64, source: string) -> bool {
-    let category = worker_category[worker];
-
-    ensure!(worker_zpass_verified.get_or_use(worker, false), "Worker must be ZPass verified to invest in farms");
-
-    // Restrict farm investment to Agricultural workers only
-    ensure!(category == "Agricultural", "Only workers in the Agricultural industry can invest in farm projects");
-
-    ensure!(source == "PTO" || source == "Sick", "Invalid source; must be PTO or Sick Pay");
-
-    if source == "PTO" {
-        ensure!(pto_balances[worker] >= amount, "Insufficient PTO balance");
-        pto_balances[worker] -= amount;
-    } else {
-        ensure!(sick_balances[worker] >= amount, "Insufficient Sick Pay balance");
-        sick_balances[worker] -= amount;
-    }
-
-    // Allocate funds to farm investment
-    farm_investments[worker] += amount;
-
-    return true;
-}
-
 // ✅ Function: Verify employer has properly funded PTO/Sick Pay pools
 function verify_employer_funding(employer: address) -> bool {
     ensure!(employer_pto_funds[employer] >= 0, "Employer PTO fund deficit detected");
@@ -141,49 +125,14 @@ function verify_employer_funding(employer: address) -> bool {
     return true;
 }
 
-// ✅ Function: Employer deposits PTO/Sick Pay reserves
-function employer_deposit_funds(employer: address, pto_amount: u64, sick_amount: u64) {
-    employer_pto_funds[employer] += pto_amount;
-    employer_sick_funds[employer] += sick_amount;
-}
-
-// ✅ Function: Employer penalties for noncompliance
-function employer_penalty(employer: address, penalty_amount: u64) {
-    ensure!(penalty_amount > 0, "Penalty must be greater than zero");
-
-    // Deduct from employer funds
-    employer_pto_funds[employer] -= penalty_amount / 2;
-    employer_sick_funds[employer] -= penalty_amount / 2;
-
-    // Distribute penalties to a worker protection pool or DAO fund
-    transfer_private dao_treasury penalty_amount;
-}
-
-// ✅ Function: SubDAO checks employer compliance
-function subdao_check_compliance(employer: address) -> bool {
-    let pto_funding = employer_pto_funds[employer];
-    let sick_funding = employer_sick_funds[employer];
-
-    if pto_funding < 0 || sick_funding < 0 {
-        employer_penalty(employer, 500); // Example: $500 penalty for noncompliance
-        return false;
-    }
-    return true;
-}
-
-// ✅ Utility function: Get the current timestamp
-function get_current_time() -> u64 {
-    return env::block_timestamp();
-}
-
-// ✅ Utility function: Lookup a worker's ANS name by address
-function lookup_worker_by_address(worker: address) -> string {
-    ensure!(ans_registry.contains(worker), "Worker does not have an ANS name");
-    return ans_registry[worker];
-}
-
-// ✅ Utility function: Lookup a worker's address by ANS name
+// ✅ Function: Lookup a worker's address by ANS name
 function lookup_worker_by_ans(ans_name: string) -> address {
-    ensure!(ans_reverse_lookup.contains(ans_name), "ANS name not found");
+    ensure!(ans_reverse_lookup.contains(ans_name), "Worker ANS name not found");
     return ans_reverse_lookup[ans_name];
+}
+
+// ✅ Function: Lookup a SubDAO's address by ANS name
+function lookup_subDAO_by_ans(ans_name: string) -> address {
+    ensure!(subDAO_reverse_lookup.contains(ans_name), "ANS name not found");
+    return subDAO_reverse_lookup[ans_name];
 }
