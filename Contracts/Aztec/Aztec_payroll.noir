@@ -14,11 +14,12 @@ struct PayrollRecord {
     amount: u64,
     tax_withheld: u64,
     trust_fund_contribution: u64,
+    subdao_expense_fee: u64,
     net_payout: u64,
     timestamp: u64,
 }
 
-// 🔹 Worker payroll processing function with ZPass & ANS validation
+// 🔹 Worker Payroll Processing (Includes 0.1% SubDAO Fee)
 fn process_payroll(worker_id: Field, employer_id: Field, subdao_id: Field, amount: u64, trust_contribution_rate: u64) -> PayrollRecord {
     // Ensure worker and employer have valid ZPass verification
     assert!(aleo_zpass::is_verified(worker_id), "Worker must be ZPass verified");
@@ -37,8 +38,11 @@ fn process_payroll(worker_id: Field, employer_id: Field, subdao_id: Field, amoun
     // Compute trust fund contribution
     let trust_fund_contribution = (amount * trust_contribution_rate) / 100;
 
-    // Calculate net payout after tax and trust fund allocation
-    let net_payout = amount - tax_withheld - trust_fund_contribution;
+    // Compute SubDAO expense fee (0.1% of payroll value)
+    let subdao_expense_fee = (amount * 1) / 1000;
+
+    // Calculate net payout after deductions
+    let net_payout = amount - tax_withheld - trust_fund_contribution - subdao_expense_fee;
 
     // Create payroll record
     let payroll_record = PayrollRecord {
@@ -50,17 +54,18 @@ fn process_payroll(worker_id: Field, employer_id: Field, subdao_id: Field, amoun
         amount,
         tax_withheld,
         trust_fund_contribution,
+        subdao_expense_fee,
         net_payout,
         timestamp: get_current_timestamp(),
     };
 
-    // Emit payroll event with ANS integration
-    emit payroll_event(worker_id, worker_ans, employer_id, subdao_id, subdao_ans, amount, tax_withheld, trust_fund_contribution, net_payout);
+    // Emit payroll event with all deductions
+    emit payroll_event(worker_id, worker_ans, employer_id, subdao_id, subdao_ans, amount, tax_withheld, trust_fund_contribution, subdao_expense_fee, net_payout);
 
     return payroll_record;
 }
 
-// 🔹 SubDAO batch payroll execution with rollups
+// 🔹 SubDAO Batch Payroll Execution (Includes SubDAO Fee Transfers)
 fn execute_batch_payroll(payroll_records: Vec<PayrollRecord>) {
     for record in payroll_records.iter() {
         verify_compliance(record);
@@ -68,40 +73,36 @@ fn execute_batch_payroll(payroll_records: Vec<PayrollRecord>) {
     }
 }
 
-// 🔹 Compliance verification with tax enforcement
+// 🔹 Compliance Verification
 fn verify_compliance(record: PayrollRecord) {
     assert!(record.tax_withheld >= get_min_tax(record.employer_id), "Tax compliance failure");
 }
 
-// 🔹 Payroll fund transfer with trust fund contributions
+// 🔹 Payroll Fund Transfers (Includes 0.1% SubDAO Fee)
 fn transfer_funds(record: PayrollRecord) {
     send_funds(record.worker_id, record.net_payout);
     send_funds(tax_authority(), record.tax_withheld);
     send_funds(aleo_trust_fund_address(record.worker_id), record.trust_fund_contribution);
+    send_funds(record.subdao_id, record.subdao_expense_fee); // Transfer 0.1% to SubDAO expense fund
 }
 
-// 🔹 Utility functions
+// 🔹 Utility Functions
 fn get_tax_rate(employer_id: Field) -> u64 {
-    // Fetch tax rate based on employer compliance
     return query_tax_rate(employer_id);
 }
 
 fn get_min_tax(employer_id: Field) -> u64 {
-    // Fetch minimum required tax for compliance verification
     return query_tax_rate(employer_id);
 }
 
 fn send_funds(recipient: Field, amount: u64) {
-    // Placeholder function for transferring funds
     transfer_to(recipient, amount);
 }
 
 fn aleo_trust_fund_address(worker_id: Field) -> Field {
-    // Returns the Aleo trust fund address for the worker
     return get_trust_fund_address(worker_id);
 }
 
 fn tax_authority() -> Field {
-    // Returns the tax authority address for automated payments
     return get_tax_address();
 }
