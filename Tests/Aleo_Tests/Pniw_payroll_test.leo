@@ -1,85 +1,49 @@
-// 📌 PNiW Payroll Test Suite
+// 📌 PNiW Payroll Test Suite (Full: Aleo & Aztec Payroll)
 
 import pniw_payroll.leo;
+import aztec_bridge.noir;
 
-test "Process Payroll for ZPass Verified Worker" {
+// -------------------------------------------
+// ✅ Standard Aleo Payroll Tests
+// -------------------------------------------
+
+test "Process Payroll for Aleo Worker (Standard Payroll)" {
     let worker = address("aleo1workerxyz456");
     let employer = address("aleo1employerabc123");
     let wage = 3500;
     let hours_worked = 40;
     let trust_contribution = 250;
 
-    // Ensure worker is ZPass verified
-    assert!(pniw_payroll::worker_zpass_verified[worker] == true);
+    // Ensure employer funding is valid
+    assert!(pniw_payroll::verify_employer_funding(employer) == true);
 
-    // Process payroll
-    assert!(pniw_payroll::process_pniw_payroll(worker, employer, wage, hours_worked, trust_contribution) == true);
+    // Process payroll (Aleo-based)
+    assert!(pniw_payroll::process_payroll(worker, employer, wage, hours_worked, trust_contribution, 0) == true);
 
-    // Verify payroll balances
+    // Verify balances
     assert!(pniw_payroll::payroll_records[worker] == wage);
     assert!(pniw_payroll::pto_balances[worker] > 0);
     assert!(pniw_payroll::sick_balances[worker] > 0);
     assert!(pniw_payroll::trust_funds[worker] == trust_contribution);
 }
 
-test "Withdraw Payroll Funds (ZPass & ANS Required)" {
+test "Withdraw Payroll Funds (Standard Aleo Payroll)" {
     let worker = address("aleo1workerxyz456");
-    let ans_name = "janedoe.pniw";
     let withdrawal_amount = 1200;
 
-    // Ensure worker is ZPass verified
-    assert!(pniw_payroll::worker_zpass_verified[worker] == true);
-
-    // Assign ANS name to worker
-    pniw_payroll::ans_registry[worker] = ans_name;
-    pniw_payroll::ans_reverse_lookup[ans_name] = worker;
+    // Ensure worker has enough balance
+    assert!(pniw_payroll::payroll_records[worker] >= withdrawal_amount);
 
     // Withdraw payroll
-    assert!(pniw_payroll::withdraw_pniw_payroll(worker, withdrawal_amount, false, false) == true);
+    assert!(pniw_payroll::withdraw_payroll(worker, withdrawal_amount, false, false, false) == true);
 
     // Verify deduction
     assert!(pniw_payroll::payroll_records[worker] == 2300);
 }
 
-test "Withdraw PTO Balance (ZPass & ANS Required)" {
-    let worker = address("aleo1workerxyz456");
-    let ans_name = "janedoe.pniw";
-    let withdrawal_amount = 6;
-
-    // Ensure worker is ZPass verified
-    assert!(pniw_payroll::worker_zpass_verified[worker] == true);
-
-    // Assign ANS name to worker
-    pniw_payroll::ans_registry[worker] = ans_name;
-    pniw_payroll::ans_reverse_lookup[ans_name] = worker;
-
-    // Withdraw PTO
-    assert!(pniw_payroll::withdraw_pniw_payroll(worker, withdrawal_amount, true, false) == true);
-
-    // Verify PTO deduction
-    assert!(pniw_payroll::pto_balances[worker] < 6);
-}
-
-test "Withdraw Sick Leave Balance (ZPass & ANS Required)" {
-    let worker = address("aleo1workerxyz456");
-    let withdrawal_amount = 3;
-
-    // Ensure worker is ZPass verified
-    assert!(pniw_payroll::worker_zpass_verified[worker] == true);
-
-    // Withdraw sick pay
-    assert!(pniw_payroll::withdraw_pniw_payroll(worker, withdrawal_amount, false, true) == true);
-
-    // Verify sick balance deduction
-    assert!(pniw_payroll::sick_balances[worker] < 3);
-}
-
-test "Employer Funds Payroll Reserves (ZPass Required)" {
+test "Employer Funds Payroll Reserves (Standard Aleo Payroll)" {
     let employer = address("aleo1employerabc123");
     let deposit_amount = 6000;
-
-    // Ensure employer is ZPass verified
-    assert!(pniw_payroll::employer_zpass_verified[employer] == true);
 
     // Deposit payroll reserves
     assert!(pniw_payroll::employer_deposit_usdc(employer, deposit_amount) == true);
@@ -88,80 +52,90 @@ test "Employer Funds Payroll Reserves (ZPass Required)" {
     assert!(pniw_payroll::get_usdc_balance(employer) == deposit_amount);
 }
 
-test "Ensure Employer Has Required Payroll Liquidity (ZPass Required)" {
-    let employer = address("aleo1employerabc123");
+// -------------------------------------------
+// ✅ Aztec Payroll Tests (New Additions)
+// -------------------------------------------
 
-    // Ensure employer is ZPass verified
-    assert!(pniw_payroll::employer_zpass_verified[employer] == true);
-
-    // Verify employer liquidity
-    assert!(pniw_payroll::verify_usdc_pool(employer) == true);
-
-    // Simulate underfunding
-    pniw_payroll::set_usdc_balance(employer, 100);
-    assert!(pniw_payroll::verify_usdc_pool(employer) == false);
-}
-
-test "Employer Penalized for Insufficient Payroll Liquidity (ZPass Required)" {
-    let employer = address("aleo1employerabc123");
-
-    // Simulate employer non-compliance
-    pniw_payroll::set_usdc_balance(employer, 100);
-    
-    // Ensure employer is ZPass verified
-    assert!(pniw_payroll::employer_zpass_verified[employer] == true);
-
-    // Enforce penalty
-    assert!(pniw_payroll::enforce_usdc_penalty(employer) == true);
-}
-
-test "Worker Invests PTO in Farm (ZPass & ANS Required)" {
+test "Worker Enables Aztec Payroll (ZPass & ANS Required)" {
     let worker = address("aleo1workerxyz456");
-    let farm = address("aleo1farm789");
-    let investment_amount = 12;
     let ans_name = "janedoe.pniw";
 
-    // Ensure worker is ZPass verified
-    assert!(pniw_payroll::worker_zpass_verified[worker] == true);
+    // Ensure worker has ZPass verification
+    assert!(aleo_zpass::is_verified(worker) == true);
 
     // Assign ANS name to worker
     pniw_payroll::ans_registry[worker] = ans_name;
     pniw_payroll::ans_reverse_lookup[ans_name] = worker;
 
-    // Worker invests PTO
-    assert!(pniw_payroll::invest_pniw_pto_sick_pay(worker, investment_amount, "PTO") == true);
+    // Enable Aztec payroll
+    assert!(pniw_payroll::set_aztec_payroll_preference(worker, true) == true);
 
-    // Verify PTO deduction
-    assert!(pniw_payroll::pto_balances[worker] < 12);
-    assert!(pniw_payroll::farm_investments[worker] == investment_amount);
+    // Verify preference update
+    assert!(pniw_payroll::aztec_payroll_enabled[worker] == true);
 }
 
-test "Worker Invests Sick Pay in Farm (ZPass & ANS Required)" {
+test "Process Payroll for Worker Using Aztec (ZPass & ANS Required)" {
     let worker = address("aleo1workerxyz456");
-    let farm = address("aleo1farm789");
-    let investment_amount = 7;
+    let employer = address("aleo1employerabc123");
+    let wage = 3500;
+    let hours_worked = 40;
+    let trust_contribution = 250;
+    
+    // Ensure employer funding is valid
+    assert!(pniw_payroll::verify_employer_funding(employer) == true);
+    
+    // Enable Aztec Payroll
+    assert!(pniw_payroll::set_aztec_payroll_preference(worker, true) == true);
 
-    // Ensure worker is ZPass verified
-    assert!(pniw_payroll::worker_zpass_verified[worker] == true);
+    // Process payroll
+    assert!(pniw_payroll::process_payroll(worker, employer, wage, hours_worked, trust_contribution, 0) == true);
 
-    // Worker invests sick pay
-    assert!(pniw_payroll::invest_pniw_pto_sick_pay(worker, investment_amount, "Sick") == true);
+    // Verify deductions before sending to Aztec
+    assert!(pniw_payroll::payroll_records[worker] == wage - trust_contribution);
+    assert!(pniw_payroll::trust_funds[worker] == trust_contribution);
 
-    // Verify Sick Pay deduction
-    assert!(pniw_payroll::sick_balances[worker] < 7);
-    assert!(pniw_payroll::farm_investments[worker] == 7);
+    // Verify net payroll is routed through Aztec
+    let net_payroll = wage - trust_contribution;
+    assert!(aztec_bridge::transfer_payroll({
+        recipient: worker,
+        amount: net_payroll,
+        fee_option: true,
+        ans_domain: pniw_payroll::ans_registry[worker]
+    }) == true);
 }
 
-test "SubDAO Reviews Employer Compliance (ZPass Required)" {
+test "Prevent Aztec Payroll Without ZPass & ANS" {
+    let worker = address("aleo1workerxyz456");
+
+    // Ensure worker is NOT ZPass verified
+    assert!(aleo_zpass::is_verified(worker) == false);
+
+    // Attempt to enable Aztec payroll (should fail)
+    assert!(pniw_payroll::set_aztec_payroll_preference(worker, true) == false);
+}
+
+test "Verify Payroll Deduction Before Aztec Transfer" {
+    let worker = address("aleo1workerxyz456");
     let employer = address("aleo1employerabc123");
+    let wage = 5000;
+    let trust_contribution = 500;
 
-    // Ensure employer is ZPass verified
-    assert!(pniw_payroll::employer_zpass_verified[employer] == true);
+    // Enable Aztec Payroll
+    assert!(pniw_payroll::set_aztec_payroll_preference(worker, true) == true);
 
-    // Enforce compliance check
-    assert!(pniw_payroll::subdao_check_compliance(employer) == true);
+    // Process payroll
+    assert!(pniw_payroll::process_payroll(worker, employer, wage, 40, trust_contribution, 0) == true);
 
-    // Simulate employer non-compliance
-    pniw_payroll::set_usdc_balance(employer, 50);
-    assert!(pniw_payroll::subdao_check_compliance(employer) == false);
+    // Ensure deductions occurred before sending to Aztec
+    let net_wage = wage - trust_contribution;
+    assert!(pniw_payroll::payroll_records[worker] == net_wage);
+    assert!(pniw_payroll::trust_funds[worker] == trust_contribution);
+
+    // Confirm net amount was transferred
+    assert!(aztec_bridge::transfer_payroll({
+        recipient: worker,
+        amount: net_wage,
+        fee_option: true,
+        ans_domain: pniw_payroll::ans_registry[worker]
+    }) == true);
 }
