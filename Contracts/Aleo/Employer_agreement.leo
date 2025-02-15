@@ -4,37 +4,52 @@ import aleo_usdc_pool.leo;
 import certification_verifier.leo;
 import farm_investment.leo;
 import compliance_tracking.leo;
+import mining_investment.leo;
 import aztec_payroll.noir;
+import subdao_circle_usdc_reserve.noir;
+import subdao_aleo_usdc_reserve.leo;
+import oversightdao_combined_reserve.leo;
 
 // 🏷️ Employer Payroll Fund Tracking
-mapping employer_balances: public hashmap<address, u64>;  // Employer payroll funds (Aleo)
-mapping employer_aztec_balances: public hashmap<address, u64>;  // Employer payroll funds (Aztec)
-mapping employer_status: public hashmap<address, bool>;   // Employer compliance status
-mapping worker_assignments: public hashmap<address, address>;  // Worker → Employer mapping
+mapping employer_balances: public hashmap<address, u64>;  
+mapping employer_aztec_balances: public hashmap<address, u64>;  
+mapping employer_status: public hashmap<address, bool>;   
+mapping worker_assignments: public hashmap<address, address>;  
 
 // 🔹 Worker-Specific Payroll Preferences
-mapping worker_hourly_wages: public hashmap<address, u64>;  // Worker-specific hourly wages
-mapping employer_hourly_buffer: public hashmap<address, u64>;  // Minimum required hourly payroll reserve
-mapping worker_aztec_enabled: public hashmap<address, bool>;  // Worker preference for Aztec payroll
+mapping worker_hourly_wages: public hashmap<address, u64>;  
+mapping employer_hourly_buffer: public hashmap<address, u64>;  
+mapping worker_aztec_enabled: public hashmap<address, bool>;  
+
+// 🔹 Employer Payroll Solvency Tracking
+mapping employer_solvency_months: public hashmap<address, u64>;  
 
 // 🔹 Farm & Investment Restrictions
-mapping employer_farm_types: public hashmap<address, array<string>>;  // Allowed farm types per employer
-mapping employer_certifications: public hashmap<address, array<string>>;  // Certifications per employer
-mapping employer_investment_limits: public hashmap<address, u64>;  // Limits on worker investments per employer
-mapping employer_farm_investment_agreement: public hashmap<address, bool>;  // Employer agreement to negotiable worker farm investment
-
-// 🔹 New ANS Mappings
-mapping ans_registry: public hashmap<address, string>;  // Maps worker addresses to ANS names
-mapping ans_reverse_lookup: public hashmap<string, address>;  // Maps ANS names to worker addresses
+mapping employer_farm_types: public hashmap<address, array<string>>;  
+mapping employer_certifications: public hashmap<address, array<string>>;  
+mapping employer_investment_limits: public hashmap<address, u64>;  
+mapping employer_farm_investment_agreement: public hashmap<address, bool>;  
 
 // 🔹 Employer Mining Contributions
-mapping employer_mining_contribution: public hashmap<address, u64>;  // Tracks mining power submitted by each employer
-mapping grant_mining_rig_eligibility: public hashmap<address, bool>;  // Tracks which employers receive grant-funded rigs
+mapping employer_mining_contribution: public hashmap<address, u64>;  
+mapping grant_mining_rig_eligibility: public hashmap<address, bool>;  
 
 // 🔹 Multi-Chain Payroll Compliance
-mapping employer_subdao_fees: public hashmap<address, u64>;  // SubDAO contributions required for Aztec payroll
+mapping employer_subdao_fees: public hashmap<address, u64>;  
 
-/// @dev Allows employers to apply for a grant-funded mining rig
+/// @dev Employers must register mining contributions for compliance
+function verify_mining_contribution(employer: address, mining_power: u64) -> bool {
+    ensure!(employer_status.get(employer).unwrap_or(false), "Employer is non-compliant.");
+    ensure!(mining_power > 0, "Mining contribution must be greater than zero.");
+    
+    employer_mining_contribution.insert(employer, mining_power);
+    compliance_tracking.update_mining_proof(employer, mining_power);
+    mining_investment.track_mining_rewards(employer, mining_power);
+
+    return true;
+}
+
+/// @dev Employers can apply for a grant-funded mining rig
 function apply_for_grant_mining_rig(employer: address) -> bool {
     ensure!(employer_status.get(employer).unwrap_or(false), "Employer is non-compliant.");
     ensure!(!grant_mining_rig_eligibility.contains(employer), "Employer has already received a grant-funded rig.");
@@ -43,101 +58,87 @@ function apply_for_grant_mining_rig(employer: address) -> bool {
     return true;
 }
 
-/// @dev Verifies mining contribution for on-chain compliance tracking
-function verify_mining_contribution(employer: address, mining_power: u64) -> bool {
+/// @dev Ensures worker investments follow employer-defined farm restrictions
+function enforce_farm_investment_restrictions(worker: address, employer: address, farm_type: string, investment_amount: u64) -> bool {
     ensure!(employer_status.get(employer).unwrap_or(false), "Employer is non-compliant.");
-    ensure!(mining_power > 0, "Mining contribution must be greater than zero.");
     
-    employer_mining_contribution.insert(employer, mining_power);
-    compliance_tracking.update_mining_proof(employer, mining_power);
+    let allowed_farms = employer_farm_types.get(employer).unwrap_or(vec![]);
+    ensure!(allowed_farms.contains(farm_type), "Worker cannot invest in this farm type.");
 
-    return true;
-}
+    let certs_required = employer_certifications.get(employer).unwrap_or(vec![]);
+    if !certs_required.is_empty() {
+        let valid_certification = certification_verifier.verify_certification(employer, farm_type);
+        ensure!(valid_certification, "Farm does not meet certification requirements.");
+    }
 
-/// @dev Registers a new employer with payroll funding on Aleo & Aztec
-function register_employer(employer: address, initial_deposit_aleo: u64, initial_deposit_aztec: u64, farm_types: array<string>) -> bool {
-    ensure!(initial_deposit_aleo >= required_deposit(), "Insufficient Aleo deposit.");
-    ensure!(initial_deposit_aztec >= required_deposit(), "Insufficient Aztec deposit.");
-    
-    employer_balances.insert(employer, initial_deposit_aleo);
-    employer_aztec_balances.insert(employer, initial_deposit_aztec);
-    employer_status.insert(employer, true);
-    employer_farm_types.insert(employer, farm_types);
-    employer_farm_investment_agreement.insert(employer, true);
+    let max_investment = employer_investment_limits.get(employer).unwrap_or(0);
+    ensure!(investment_amount <= max_investment, "Investment exceeds employer-defined limit.");
 
-    return true;
-}
-
-/// @dev Assigns a worker to an employer using ANS
-function assign_worker_by_ans(worker_ans: string, employer: address, hourly: bool, wage: u64) -> bool {
-    let worker = lookup_worker_by_ans(worker_ans);
-    assign_worker(worker, employer, hourly, wage);
-}
-
-/// @dev Registers a farm certification for an employer (API-based verification required)
-function register_farm_certification(employer: address, certification: string) -> bool {
-    let is_valid = certification_verifier.verify_certification(employer, certification);
-    ensure!(is_valid, "Certification verification failed.");
-
-    let mut certs = employer_certifications.get(employer).unwrap_or(vec![]);
-    certs.push(certification);
-    employer_certifications.insert(employer, certs);
-
-    return true;
-}
-
-/// @dev Enforces real-time payroll funding for hourly workers before they clock in
-function enforce_hourly_funding(worker: address) -> bool {
-    let employer = worker_assignments.get(worker).unwrap_or_else(|| panic!("Worker is not assigned to an employer."));
-    let hourly_wage = worker_hourly_wages.get(worker).unwrap_or(0);
-    let buffer_hours = employer_hourly_buffer.get(employer).unwrap_or(24);  
-
-    let total_workers = worker_assignments.iter().filter(|(_, e)| **e == employer).count() as u64;
-    let required_balance = total_workers * hourly_wage * buffer_hours;
-    let employer_balance = employer_balances.get(employer).unwrap_or(0);
-
-    ensure!(employer_balance >= required_balance, "Insufficient employer payroll funds.");
-    return true;
-}
-
-/// @dev Ensures employer compliance before processing Aleo or Aztec payroll
-function enforce_employer_compliance(employer: address) -> bool {
     let compliant = compliance_tracking.check_employer_compliance(employer);
-    ensure!(compliant, "Employer is not compliant with payroll, taxes, or SubDAO obligations.");
+    ensure!(compliant, "Investment blocked due to unpaid employer payroll.");
 
     return true;
 }
 
-/// @dev Funds an employer’s payroll balance on Aleo or Aztec
-function fund_employer(employer: address, amount: u64, use_aztec: bool) -> bool {
+/// @dev Employers must approve farm investment agreements before workers can invest
+function approve_farm_investment_agreement(employer: address) -> bool {
+    ensure!(employer_status.get(employer).unwrap_or(false), "Employer is non-compliant.");
+    employer_farm_investment_agreement.insert(employer, true);
+    return true;
+}
+
+/// @dev Employers must deposit payroll into the assigned SubDAO before paying workers
+function deposit_payroll_to_subdao(employer: address, subdao_id: Field, amount: u64, use_aztec: bool) -> bool {
+    ensure!(employer_status.get(employer).unwrap_or(false), "Employer is not registered.");
+    
     if use_aztec {
-        let success = aztec_payroll.deposit(employer, amount);
-        ensure!(success, "Failed to deposit funds on Aztec.");
+        let success = subdao_circle_usdc_reserve.deposit_circle_usdc(subdao_id, employer, amount);
+        ensure!(success, "Failed to deposit CircleUSDC into SubDAO.");
         employer_aztec_balances.insert(employer, employer_aztec_balances.get(employer).unwrap_or(0) + amount);
     } else {
-        let success = aleo_usdc_pool.deposit(employer, amount);
-        ensure!(success, "Failed to deposit funds on Aleo.");
+        let success = subdao_aleo_usdc_reserve.deposit_aleo_usdc(subdao_id, employer, amount);
+        ensure!(success, "Failed to deposit AleoUSDC into SubDAO.");
         employer_balances.insert(employer, employer_balances.get(employer).unwrap_or(0) + amount);
     }
+
+    enforce_employer_topup(employer);
     return true;
 }
 
-/// @dev Allows employers to withdraw unused funds but only after closing their contract
-function request_employer_withdrawal(employer: address) -> bool {
-    ensure!(!employer_status.get(employer).unwrap_or(true), "Employer contract must be closed before withdrawal.");
-    
+/// @dev Employers must contribute a percentage of payroll to SubDAO reserves
+function contribute_to_subdao_reserve(employer: address, subdao_id: Field, payroll_amount: u64) -> bool {
+    let contribution_rate = employer_subdao_fees.get(employer).unwrap_or(1);
+    let contribution_amount = payroll_amount * contribution_rate / 100;
+
+    let success = subdao_aleo_usdc_reserve.deposit_aleo_usdc(subdao_id, employer, contribution_amount);
+    ensure!(success, "Failed to contribute to SubDAO reserve.");
+
+    return true;
+}
+
+/// @dev Employers must automatically top-up payroll if funds drop below 50%
+function enforce_employer_topup(employer: address) -> bool {
     let employer_balance = employer_balances.get(employer).unwrap_or(0);
-    ensure!(employer_balance > 0, "No funds available for withdrawal.");
+    let employer_aztec_balance = employer_aztec_balances.get(employer).unwrap_or(0);
+    let total_balance = employer_balance + employer_aztec_balance;
+    
+    let required_balance = employer_hourly_buffer.get(employer).unwrap_or(24) * 50;
+    
+    if total_balance < required_balance {
+        oversightdao_combined_reserve.request_employer_topup(employer, total_balance);
+    }
 
-    let success = aleo_usdc_pool.withdraw(employer, employer_balance);
-    ensure!(success, "Withdrawal failed.");
-
-    employer_balances.insert(employer, 0);
     return true;
 }
 
-/// @dev Utility function: Lookup a worker's address by ANS name
-function lookup_worker_by_ans(ans_name: string) -> address {
-    ensure!(ans_reverse_lookup.contains(ans_name), "ANS name not found");
-    return ans_reverse_lookup[ans_name];
+/// @dev Reduces employer overhead by 1% per month if solvent
+function update_employer_overhead(employer: address) -> bool {
+    let months_solved = employer_solvency_months.get(employer).unwrap_or(0);
+    
+    if months_solved >= 1 {
+        let reduction = months_solved.min(25);
+        oversightdao_combined_reserve.update_employer_overhead(employer, reduction);
+    }
+
+    return true;
 }
