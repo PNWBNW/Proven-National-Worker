@@ -1,10 +1,16 @@
 // Aztec Payroll Contract for PNW
 // Handles payroll processing for workers opting into Aztec-based payments.
 
+import aztec_std::*;
+import aleo_zpass::*;
+import aleo_ans::*;
+
 struct PayrollRecord {
     worker_id: Field,
+    worker_ans: String,
     employer_id: Field,
     subdao_id: Field,
+    subdao_ans: String,
     amount: u64,
     tax_withheld: u64,
     trust_fund_contribution: u64,
@@ -12,8 +18,18 @@ struct PayrollRecord {
     timestamp: u64,
 }
 
-// Worker payroll processing function
+// 🔹 Worker payroll processing function with ZPass & ANS validation
 fn process_payroll(worker_id: Field, employer_id: Field, subdao_id: Field, amount: u64, trust_contribution_rate: u64) -> PayrollRecord {
+    // Ensure worker and employer have valid ZPass verification
+    assert!(aleo_zpass::is_verified(worker_id), "Worker must be ZPass verified");
+    assert!(aleo_zpass::is_verified(employer_id), "Employer must be ZPass verified");
+
+    // Ensure worker and SubDAO have valid ANS registrations
+    let worker_ans = aleo_ans::get_ans(worker_id);
+    let subdao_ans = aleo_ans::get_ans(subdao_id);
+    assert!(worker_ans != "", "Worker must be registered with ANS");
+    assert!(subdao_ans != "", "SubDAO must be registered with ANS");
+
     // Compute automated tax amount
     let tax_rate = get_tax_rate(employer_id);
     let tax_withheld = (amount * tax_rate) / 100;
@@ -27,8 +43,10 @@ fn process_payroll(worker_id: Field, employer_id: Field, subdao_id: Field, amoun
     // Create payroll record
     let payroll_record = PayrollRecord {
         worker_id,
+        worker_ans,
         employer_id,
         subdao_id,
+        subdao_ans,
         amount,
         tax_withheld,
         trust_fund_contribution,
@@ -36,13 +54,13 @@ fn process_payroll(worker_id: Field, employer_id: Field, subdao_id: Field, amoun
         timestamp: get_current_timestamp(),
     };
 
-    // Emit payroll event
-    emit payroll_event(worker_id, employer_id, subdao_id, amount, tax_withheld, trust_fund_contribution, net_payout);
+    // Emit payroll event with ANS integration
+    emit payroll_event(worker_id, worker_ans, employer_id, subdao_id, subdao_ans, amount, tax_withheld, trust_fund_contribution, net_payout);
 
     return payroll_record;
 }
 
-// SubDAO batch payroll execution
+// 🔹 SubDAO batch payroll execution with rollups
 fn execute_batch_payroll(payroll_records: Vec<PayrollRecord>) {
     for record in payroll_records.iter() {
         verify_compliance(record);
@@ -50,19 +68,19 @@ fn execute_batch_payroll(payroll_records: Vec<PayrollRecord>) {
     }
 }
 
-// Compliance verification
+// 🔹 Compliance verification with tax enforcement
 fn verify_compliance(record: PayrollRecord) {
-    assert(record.tax_withheld >= get_min_tax(record.employer_id), "Tax compliance failure");
+    assert!(record.tax_withheld >= get_min_tax(record.employer_id), "Tax compliance failure");
 }
 
-// Payroll fund transfer
+// 🔹 Payroll fund transfer with trust fund contributions
 fn transfer_funds(record: PayrollRecord) {
     send_funds(record.worker_id, record.net_payout);
     send_funds(tax_authority(), record.tax_withheld);
     send_funds(aleo_trust_fund_address(record.worker_id), record.trust_fund_contribution);
 }
 
-// Utility functions
+// 🔹 Utility functions
 fn get_tax_rate(employer_id: Field) -> u64 {
     // Fetch tax rate based on employer compliance
     return query_tax_rate(employer_id);
