@@ -1,0 +1,106 @@
+// 📌 Aztec Bridge Test Suite
+
+import aztec_bridge.noir;
+import aleo_zpass::*;
+import aleo_ans::*;
+
+test "ZPass & ANS Required for Payroll Transfer" {
+    let worker = aztec_address("aztec1workerxyz456");
+    let recipient = aztec_address("aztec1recipient123");
+    let ans_name = "johndoe.pncw";
+    let payroll_amount = 2000;
+
+    // Ensure worker is NOT ZPass verified initially
+    assert!(aleo_zpass::is_verified(worker) == false);
+
+    // Assign ANS name to worker (but ZPass is missing)
+    aleo_ans::register(worker, ans_name);
+
+    // Attempt transfer (should fail due to missing ZPass)
+    let transfer_request = PayrollTransfer {
+        recipient: recipient,
+        amount: payroll_amount,
+        fee_option: true,
+        ans_domain: ans_name
+    };
+    assert!(aztec_bridge::transfer_payroll(transfer_request) == false);
+
+    // Now verify worker with ZPass
+    aleo_zpass::verify(worker);
+
+    // Retry transfer (should pass now)
+    assert!(aztec_bridge::transfer_payroll(transfer_request) == true);
+}
+
+test "Payroll Transfer Uses Correct Amount & Method" {
+    let worker = aztec_address("aztec1workerxyz456");
+    let recipient = aztec_address("aztec1recipient123");
+    let ans_name = "johndoe.pncw";
+    let payroll_amount = 1500;
+
+    // Ensure worker is fully verified
+    aleo_zpass::verify(worker);
+    aleo_ans::register(worker, ans_name);
+
+    // Test Direct Settlement
+    let direct_transfer = PayrollTransfer {
+        recipient: recipient,
+        amount: payroll_amount,
+        fee_option: true, // Direct
+        ans_domain: ans_name
+    };
+    assert!(aztec_bridge::transfer_payroll(direct_transfer) == true);
+
+    // Test Rollup Transfer
+    let rollup_transfer = PayrollTransfer {
+        recipient: recipient,
+        amount: payroll_amount,
+        fee_option: false, // Rollup
+        ans_domain: ans_name
+    };
+    assert!(aztec_bridge::transfer_payroll(rollup_transfer) == true);
+}
+
+test "Payroll Transfer Fails for Invalid Amounts" {
+    let worker = aztec_address("aztec1workerxyz456");
+    let recipient = aztec_address("aztec1recipient123");
+    let ans_name = "johndoe.pncw";
+
+    // Ensure worker is fully verified
+    aleo_zpass::verify(worker);
+    aleo_ans::register(worker, ans_name);
+
+    // Attempt transfer with zero amount (should fail)
+    let invalid_transfer = PayrollTransfer {
+        recipient: recipient,
+        amount: 0,
+        fee_option: true,
+        ans_domain: ans_name
+    };
+    assert!(aztec_bridge::transfer_payroll(invalid_transfer) == false);
+}
+
+test "Verify Rollup-Based Payroll Processing" {
+    let worker = aztec_address("aztec1workerxyz456");
+    let recipient = aztec_address("aztec1recipient123");
+    let ans_name = "johndoe.pncw";
+    let payroll_amount = 3000;
+
+    // Ensure worker is fully verified
+    aleo_zpass::verify(worker);
+    aleo_ans::register(worker, ans_name);
+
+    // Transfer with rollup (should queue batch)
+    let rollup_transfer = PayrollTransfer {
+        recipient: recipient,
+        amount: payroll_amount,
+        fee_option: false,
+        ans_domain: ans_name
+    };
+
+    assert!(aztec_bridge::transfer_payroll(rollup_transfer) == true);
+
+    // Verify rollup queue has received the transfer
+    let batch_id = rollup_batch_id();
+    assert!(aztec_bridge::aztec_add_to_batch(batch_id, worker, recipient, payroll_amount) == true);
+}
