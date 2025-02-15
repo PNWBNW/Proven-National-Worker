@@ -1,1 +1,102 @@
 
+// 📌 Aztec Payroll Test Suite (ZPass, ANS, 0.1% SubDAO Fee Compliance)
+
+import aztec_payroll.noir;
+import aleo_zpass::*;
+import aleo_ans::*;
+
+test "Worker Payroll Processing with 0.1% SubDAO Fee" {
+    let worker_id = field(123456);
+    let employer_id = field(987654);
+    let subdao_id = field(555111);
+    let worker_ans = "john_doe.pncw.ans";
+    let subdao_ans = "wa001_payroll.pnw.ans";
+    let amount = 5000u64;
+    let trust_contribution_rate = 10u64; // 10% to trust fund
+
+    // Ensure worker & employer have ZPass verification
+    assert!(aleo_zpass::is_verified(worker_id) == true);
+    assert!(aleo_zpass::is_verified(employer_id) == true);
+
+    // Register ANS for worker & SubDAO
+    aleo_ans::register_ans(worker_id, worker_ans);
+    aleo_ans::register_ans(subdao_id, subdao_ans);
+
+    // Process payroll
+    let payroll_record = aztec_payroll::process_payroll(worker_id, employer_id, subdao_id, amount, trust_contribution_rate);
+
+    // Verify 0.1% SubDAO fee calculation
+    let expected_subdao_fee = (amount * 1) / 1000;
+    assert!(payroll_record.subdao_expense_fee == expected_subdao_fee);
+}
+
+test "Batch Payroll Execution with SubDAO Fee Inclusion" {
+    let employer_id = field(987654);
+    let subdao_id = field(555111);
+    let amount1 = 4000u64;
+    let amount2 = 6000u64;
+    let trust_rate = 10u64;
+
+    let worker1 = field(123456);
+    let worker2 = field(789101);
+    let worker1_ans = "alice_smith.pniw.ans";
+    let worker2_ans = "bob_jones.pncw.ans";
+    let subdao_ans = "ca002_payroll.pnw.ans";
+
+    // Ensure ZPass verification
+    assert!(aleo_zpass::is_verified(worker1) == true);
+    assert!(aleo_zpass::is_verified(worker2) == true);
+    assert!(aleo_zpass::is_verified(employer_id) == true);
+
+    // Register ANS for workers & SubDAO
+    aleo_ans::register_ans(worker1, worker1_ans);
+    aleo_ans::register_ans(worker2, worker2_ans);
+    aleo_ans::register_ans(subdao_id, subdao_ans);
+
+    // Create payroll records
+    let record1 = aztec_payroll::process_payroll(worker1, employer_id, subdao_id, amount1, trust_rate);
+    let record2 = aztec_payroll::process_payroll(worker2, employer_id, subdao_id, amount2, trust_rate);
+    
+    // Execute payroll batch
+    aztec_payroll::execute_batch_payroll(vec![record1, record2]);
+
+    // Verify SubDAO fee is deducted for each worker
+    let expected_fee1 = (amount1 * 1) / 1000;
+    let expected_fee2 = (amount2 * 1) / 1000;
+
+    assert!(record1.subdao_expense_fee == expected_fee1);
+    assert!(record2.subdao_expense_fee == expected_fee2);
+}
+
+test "Prevent Payroll Processing Without ZPass Verification" {
+    let worker_id = field(123456);
+    let employer_id = field(987654);
+    let subdao_id = field(555111);
+    let amount = 4500u64;
+    let trust_rate = 10u64;
+
+    // Ensure worker is NOT ZPass verified
+    aleo_zpass::set_verified(worker_id, false);
+
+    // Attempt to process payroll (should fail)
+    assert!(aztec_payroll::process_payroll(worker_id, employer_id, subdao_id, amount, trust_rate) == false);
+}
+
+test "Ensure Trust Fund Contributions are Sent to Aleo Trust Pool" {
+    let worker_id = field(123456);
+    let employer_id = field(987654);
+    let subdao_id = field(555111);
+    let amount = 7000u64;
+    let trust_rate = 15u64; // 15% trust fund contribution
+
+    // Ensure worker & employer have ZPass verification
+    assert!(aleo_zpass::is_verified(worker_id) == true);
+    assert!(aleo_zpass::is_verified(employer_id) == true);
+
+    // Process payroll
+    let payroll_record = aztec_payroll::process_payroll(worker_id, employer_id, subdao_id, amount, trust_rate);
+
+    // Verify trust fund contribution is correctly transferred
+    let expected_trust = (amount * trust_rate) / 100;
+    assert!(payroll_record.trust_fund_contribution == expected_trust);
+}
