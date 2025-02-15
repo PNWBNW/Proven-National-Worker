@@ -1,9 +1,10 @@
 // Aztec Payroll Contract for PNW
-// Handles payroll processing for workers opting into Aztec-based payments.
+// Handles payroll processing for workers opting into Aztec-based payments with Circle USDC.
 
 import aztec_std::*;
 import aleo_zpass::*;
 import aleo_ans::*;
+import circle_usdc::*; // Import Circle USDC module
 
 struct PayrollRecord {
     worker_id: Field,
@@ -19,7 +20,7 @@ struct PayrollRecord {
     timestamp: u64,
 }
 
-// 🔹 Worker Payroll Processing (Includes 0.1% SubDAO Fee)
+// 🔹 Worker Payroll Processing (Now Only Circle USDC)
 fn process_payroll(worker_id: Field, employer_id: Field, subdao_id: Field, amount: u64, trust_contribution_rate: u64) -> PayrollRecord {
     // Ensure worker and employer have valid ZPass verification
     assert!(aleo_zpass::is_verified(worker_id), "Worker must be ZPass verified");
@@ -44,7 +45,7 @@ fn process_payroll(worker_id: Field, employer_id: Field, subdao_id: Field, amoun
     // Calculate net payout after deductions
     let net_payout = amount - tax_withheld - trust_fund_contribution - subdao_expense_fee;
 
-    // Create payroll record
+    // Create payroll record (Only Circle USDC)
     let payroll_record = PayrollRecord {
         worker_id,
         worker_ans,
@@ -65,7 +66,7 @@ fn process_payroll(worker_id: Field, employer_id: Field, subdao_id: Field, amoun
     return payroll_record;
 }
 
-// 🔹 SubDAO Batch Payroll Execution (Includes SubDAO Fee Transfers)
+// 🔹 SubDAO Batch Payroll Execution
 fn execute_batch_payroll(payroll_records: Vec<PayrollRecord>) {
     for record in payroll_records.iter() {
         verify_compliance(record);
@@ -78,12 +79,12 @@ fn verify_compliance(record: PayrollRecord) {
     assert!(record.tax_withheld >= get_min_tax(record.employer_id), "Tax compliance failure");
 }
 
-// 🔹 Payroll Fund Transfers (Includes 0.1% SubDAO Fee)
+// 🔹 Payroll Fund Transfers (Circle USDC Only)
 fn transfer_funds(record: PayrollRecord) {
-    send_funds(record.worker_id, record.net_payout);
-    send_funds(tax_authority(), record.tax_withheld);
-    send_funds(aleo_trust_fund_address(record.worker_id), record.trust_fund_contribution);
-    send_funds(record.subdao_id, record.subdao_expense_fee); // Transfer 0.1% to SubDAO expense fund
+    circle_usdc::transfer(record.worker_id, record.net_payout);
+    circle_usdc::transfer(tax_authority(), record.tax_withheld);
+    circle_usdc::transfer(aleo_trust_fund_address(record.worker_id), record.trust_fund_contribution);
+    circle_usdc::transfer(record.subdao_id, record.subdao_expense_fee); // Transfer 0.1% to SubDAO expense fund
 }
 
 // 🔹 Utility Functions
@@ -93,10 +94,6 @@ fn get_tax_rate(employer_id: Field) -> u64 {
 
 fn get_min_tax(employer_id: Field) -> u64 {
     return query_tax_rate(employer_id);
-}
-
-fn send_funds(recipient: Field, amount: u64) {
-    transfer_to(recipient, amount);
 }
 
 fn aleo_trust_fund_address(worker_id: Field) -> Field {
