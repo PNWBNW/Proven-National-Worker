@@ -1,0 +1,56 @@
+// Noir contract for Aztec payroll bridge with ZPass & ANS verification
+mod aztec_bridge {
+
+    use dep aztec_std::*;
+    use dep aleo_zpass::*;
+    use dep aleo_ans::*;
+
+    // Struct for a payroll transfer request
+    struct PayrollTransfer {
+        recipient: aztec_address, // Aztec wallet address
+        amount: field, // Payroll amount
+        fee_option: bool, // True = Direct Settlement, False = Rollup
+        ans_domain: string, // ANS domain for validation
+    }
+
+    // Function: Transfers payroll funds from Aleo to Aztec
+    fn transfer_payroll(request: PayrollTransfer) -> bool {
+        let sender: aztec_address = caller();
+
+        // Validate ZPass verification before allowing transfer
+        assert!(aleo_zpass::is_verified(sender), "ZPass verification required");
+
+        // Validate ANS registration
+        assert!(aleo_ans::is_registered(request.ans_domain, sender), "ANS registration required");
+
+        // Validate payroll amount
+        assert!(request.amount > 0, "Invalid payroll amount");
+
+        // Choose transfer method
+        match request.fee_option {
+            true => {
+                // Direct settlement (faster)
+                aztec_transfer(sender, request.recipient, request.amount);
+            }
+            false => {
+                // Rollup-based transfer (cheaper)
+                aztec_rollup_transfer(sender, request.recipient, request.amount);
+            }
+        }
+
+        return true;
+    }
+
+    // Function: Handles rollup-based transactions to batch payrolls
+    fn aztec_rollup_transfer(sender: aztec_address, recipient: aztec_address, amount: field) -> bool {
+        let batch_id: field = rollup_batch_id();
+        aztec_add_to_batch(batch_id, sender, recipient, amount);
+        return true;
+    }
+
+    // Function: Handles direct transfers without batching
+    fn aztec_transfer(sender: aztec_address, recipient: aztec_address, amount: field) -> bool {
+        aztec_send(sender, recipient, amount);
+        return true;
+    }
+}
