@@ -46,7 +46,7 @@ The **PNW System** is a **decentralized smart contract suite** designed to provi
 ✔ **Mining rewards distribution & employer tax compliance**  
 ✔ **Regulatory API enforcement & SubDAO governance**  
 
-PNW operates across **Aleo, Aztec Nior, and Stellar Soroban**, ensuring **multi-chain payroll compatibility**.
+PNW operates across **Aleo, Aztec Noir, and Stellar Soroban**, ensuring **multi-chain payroll compatibility**.
 
 ---
 
@@ -76,7 +76,7 @@ Want to contribute? Follow these steps:
 ## 📝 License
 The **PNW Smart Contract Suite** is released under a **proprietary license**.  
 
-📧 **For inquiries, contact:** pnw.x.farms@gmail.com  
+📧 **For inquiries, contact:** provennationalworkers@gmail.com  
 
 ---
 
