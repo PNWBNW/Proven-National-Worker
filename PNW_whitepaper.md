@@ -178,7 +178,7 @@ By streamlining regulatory compliance and ensuring full financial transparency, 
 We encourage workforce organizations, employers, compliance professionals, and decentralized governance experts to engage with the PNW system to ensure it remains an effective and fair solution for modern labor markets.
 
 For further discussions, inquiries, or system reviews, please contact:
-📧 [PNW.x.farms@gmail.com]
+📧 [provennationalworkers@gmail.com]
 
 
 ---
@@ -188,6 +188,6 @@ Appendix: Compliance & Technical References
 📜 Workforce Contribution Standards & Financial Integrity
 💰 Automated Payroll Compliance & Wage Protection
 🔗 Decentralized Governance in Workforce Management
-🔒 Privacy-Preserving Payroll with Noir & Aleo
+🔒 Privacy-Preserving Payroll with Aleo, Noir, Stellar, and Circle USDC
 
 
